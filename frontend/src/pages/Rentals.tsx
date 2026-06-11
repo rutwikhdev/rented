@@ -183,37 +183,13 @@ export default function Rentals() {
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-semibold">Reservations</h1>
-                    <p className="text-muted-foreground">Manage your reservations.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Input
-                        placeholder="Property"
-                        value={filterProperty}
-                        onChange={(e) => setFilterProperty(e.target.value)}
-                        className="w-32"
-                    />
-                    <Input
-                        placeholder="Guest"
-                        value={filterGuest}
-                        onChange={(e) => setFilterGuest(e.target.value)}
-                        className="w-32"
-                    />
-                    <Input
-                        type="datetime-local"
-                        value={filterCheckInFrom}
-                        onChange={(e) => setFilterCheckInFrom(e.target.value)}
-                        className="w-48"
-                    />
-                    <Input
-                        type="datetime-local"
-                        value={filterCheckOutTo}
-                        onChange={(e) => setFilterCheckOutTo(e.target.value)}
-                        className="w-48"
-                    />
+        <div className="flex flex-col gap-6 h-full min-h-0">
+            <div className="flex flex-col gap-4 shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-semibold">Reservations</h1>
+                        <p className="text-muted-foreground">Manage your reservations.</p>
+                    </div>
                     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                         <DialogTrigger render={<Button />}>
                             <Plus data-icon="inline-start" />
@@ -285,60 +261,94 @@ export default function Rentals() {
                         </DialogContent>
                     </Dialog>
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Input
+                        placeholder="Property"
+                        value={filterProperty}
+                        onChange={(e) => setFilterProperty(e.target.value)}
+                        className="w-full sm:w-32"
+                    />
+                    <Input
+                        placeholder="Guest"
+                        value={filterGuest}
+                        onChange={(e) => setFilterGuest(e.target.value)}
+                        className="w-full sm:w-32"
+                    />
+                    <Input
+                        type="datetime-local"
+                        value={filterCheckInFrom}
+                        onChange={(e) => setFilterCheckInFrom(e.target.value)}
+                        className="w-full sm:w-48"
+                    />
+                    <Input
+                        type="datetime-local"
+                        value={filterCheckOutTo}
+                        onChange={(e) => setFilterCheckOutTo(e.target.value)}
+                        className="w-full sm:w-48"
+                    />
+                </div>
             </div>
 
-            <div className="rounded-lg border bg-card">
+            <div className="rounded-lg border bg-card flex flex-col flex-1 overflow-hidden min-h-0">
                 {loadError ? (
-                    <div className="p-6 text-sm text-destructive">
+                    <div className="flex-1 flex items-center justify-center p-6 text-sm text-destructive">
                         {loadError}
                     </div>
                 ) : loading ? (
-                    <div className="flex justify-center p-12">
+                    <div className="flex-1 flex items-center justify-center p-12">
                         <Spinner />
                     </div>
                 ) : reservations.length === 0 && !hasFilters ? (
-                    <EmptyState
-                        icon={KeyRound}
-                        title="No reservations yet"
-                        description="Reservations you create will appear here."
-                        className="border-0"
-                    />
+                    <div className="flex-1 flex items-center justify-center">
+                        <EmptyState
+                            icon={KeyRound}
+                            title="No reservations yet"
+                            description="Reservations you create will appear here."
+                            className="border-0"
+                        />
+                    </div>
                 ) : reservations.length === 0 && hasFilters ? (
-                    <EmptyState
-                        icon={KeyRound}
-                        title="No matching reservations"
-                        description="Try adjusting your filters."
-                        className="border-0"
-                    />
+                    <div className="flex-1 flex items-center justify-center">
+                        <EmptyState
+                            icon={KeyRound}
+                            title="No matching reservations"
+                            description="Try adjusting your filters."
+                            className="border-0"
+                        />
+                    </div>
                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Property</TableHead>
-                                <TableHead>Guest</TableHead>
-                                <TableHead>Check-in</TableHead>
-                                <TableHead>Check-out</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {reservations.map((res) => (
-                                <TableRow
-                                    key={res.id}
-                                    className="cursor-pointer"
-                                    onClick={() => handleRowClick(res)}
-                                >
-                                    <TableCell className="font-medium">{res.property_name}</TableCell>
-                                    <TableCell>{res.guest_name}</TableCell>
-                                    <TableCell>{formatDateTime(res.check_in)}</TableCell>
-                                    <TableCell>{formatDateTime(res.check_out)}</TableCell>
+                    <div className="flex-1 overflow-y-auto min-h-0">
+                        <Table className="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Property</TableHead>
+                                    <TableHead>Guest</TableHead>
+                                    <TableHead>Check-in</TableHead>
+                                    <TableHead>Check-out</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {reservations.map((res) => (
+                                    <TableRow
+                                        key={res.id}
+                                        className="cursor-pointer"
+                                        onClick={() => handleRowClick(res)}
+                                    >
+                                        <TableCell className="font-medium">{res.property_name}</TableCell>
+                                        <TableCell>{res.guest_name}</TableCell>
+                                        <TableCell>{formatDateTime(res.check_in)}</TableCell>
+                                        <TableCell>{formatDateTime(res.check_out)}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 )}
             </div>
 
-            <PaginationBar page={page} pages={pages} onPageChange={setPage} />
+            <div className="shrink-0">
+                <PaginationBar page={page} pages={pages} onPageChange={setPage} />
+            </div>
 
             <Dialog open={detailDialogOpen} onOpenChange={setDetailDialogOpen}>
                 <DialogContent className="sm:max-w-md">
