@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -100,6 +101,13 @@ type createReservationRequest struct {
 	Timezone   string `json:"timezone"`
 }
 
+func (h *Handler) lockReservationProperty(propertyID string) func() {
+	actual, _ := h.reservationLocks.LoadOrStore(propertyID, &sync.Mutex{})
+	mu := actual.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 func (h *Handler) CreateReservation(c echo.Context) error {
 	session, ok := c.Get("session").(*SessionData)
 	if !ok {
@@ -158,6 +166,9 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 	var checkOutTs pgtype.Timestamptz
 	checkOutTs.Time = checkOut
 	checkOutTs.Valid = true
+
+	unlock := h.lockReservationProperty(req.PropertyID)
+	defer unlock()
 
 	if errs := h.rules.Run(c.Request().Context(), rules.RuleInput{
 		PropertyID: pid,

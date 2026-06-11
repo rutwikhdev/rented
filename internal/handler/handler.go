@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
@@ -16,6 +17,8 @@ type Handler struct {
 	redis   *redis.Client
 	logger  *utils.Logger
 	rules   *rules.Engine
+
+	reservationLocks sync.Map
 }
 
 func New(queries *db.Queries, rdb *redis.Client, logger *utils.Logger, rulesEngine *rules.Engine) *Handler {
