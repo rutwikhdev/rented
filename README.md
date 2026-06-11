@@ -64,7 +64,7 @@ All routes except `/health` are under `/api/v1`.
 | POST   | /api/v1/reservation   | List reservations (paginated, filterable) |
 | POST   | /api/v1/reservation/new | Create a reservation   |
 
-Run `./test-api.sh` for a full walkthrough with curl examples.
+Check `./queries.txt` for a full walkthrough with curl examples.
 
 ### Pagination
 
