@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -40,8 +41,8 @@ func (h *Handler) ListReservations(c echo.Context) error {
 	}
 	offset := int32((req.Page - 1) * pageSize)
 
-	var userID pgtype.UUID
-	if err := userID.Scan(session.UserID); err != nil {
+	userID, err := strconv.ParseInt(session.UserID, 10, 64)
+	if err != nil {
 		h.logger.Error("list reservations: invalid session user id", err)
 		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
 	}
@@ -76,6 +77,9 @@ func (h *Handler) ListReservations(c echo.Context) error {
 	rows, err := h.queries.ListManagerReservationsFiltered(c.Request().Context(), params)
 	if err != nil {
 		return h.internalError(c, "list reservations: db query failed", err)
+	}
+	if rows == nil {
+		rows = []db.ListManagerReservationsFilteredRow{}
 	}
 
 	var total int64
@@ -140,7 +144,7 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		return h.internalError(c, "create reservation: failed to get property", err)
 	}
 
-	if property.OwnerID.String() != session.UserID && session.UserType != "manager" {
+	if strconv.FormatInt(property.OwnerID, 10) != session.UserID && session.UserType != "manager" {
 		return errorResponse(c, http.StatusNotFound, "property not found")
 	}
 
@@ -153,8 +157,8 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		return errorResponse(c, http.StatusBadRequest, "invalid checkout datetime or timezone")
 	}
 
-	var bookedBy pgtype.UUID
-	if err := bookedBy.Scan(session.UserID); err != nil {
+	bookedBy, err := strconv.ParseInt(session.UserID, 10, 64)
+	if err != nil {
 		h.logger.Error("create reservation: invalid session user id", err)
 		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
 	}

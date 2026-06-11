@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -112,7 +113,7 @@ func (h *Handler) Signup(c echo.Context) error {
 
 	session := SessionData{
 		Token:     token,
-		UserID:    user.ID.String(),
+		UserID:    strconv.FormatInt(user.ID, 10),
 		UserName:  user.Name,
 		UserEmail: user.Email,
 		UserType:  user.Type,
@@ -171,7 +172,7 @@ func (h *Handler) Login(c echo.Context) error {
 
 	session := SessionData{
 		Token:     token,
-		UserID:    user.ID.String(),
+		UserID:    strconv.FormatInt(user.ID, 10),
 		UserName:  user.Name,
 		UserEmail: user.Email,
 		UserType:  user.Type,

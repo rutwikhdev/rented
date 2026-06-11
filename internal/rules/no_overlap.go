@@ -9,7 +9,7 @@ import (
 	"rented/internal/db"
 )
 
-var ErrOverlappingReservation = errors.New("this property already has a reservation that overlaps with the requested dates")
+var ErrOverlappingReservation = errors.New("This property already has a reservation that overlaps with the requested dates")
 
 type NoOverlapRule struct {
 	queries *db.Queries

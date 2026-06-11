@@ -10,7 +10,7 @@ import (
 
 type Property struct {
 	ID        pgtype.UUID        `json:"id"`
-	OwnerID   pgtype.UUID        `json:"owner_id"`
+	OwnerID   int64              `json:"owner_id"`
 	Title     string             `json:"title"`
 	Address   string             `json:"address"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
@@ -18,10 +18,10 @@ type Property struct {
 }
 
 type Reservation struct {
-	ID           pgtype.UUID        `json:"id"`
+	ID           int64              `json:"id"`
 	PropertyID   pgtype.UUID        `json:"property_id"`
 	PropertyName string             `json:"property_name"`
-	BookedBy     pgtype.UUID        `json:"booked_by"`
+	BookedBy     int64              `json:"booked_by"`
 	GuestName    string             `json:"guest_name"`
 	CheckIn      pgtype.Timestamptz `json:"check_in"`
 	CheckOut     pgtype.Timestamptz `json:"check_out"`
@@ -30,15 +30,15 @@ type Reservation struct {
 }
 
 type Session struct {
-	ID        pgtype.UUID        `json:"id"`
-	UserID    pgtype.UUID        `json:"user_id"`
+	ID        int64              `json:"id"`
+	UserID    int64              `json:"user_id"`
 	Token     string             `json:"token"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {
-	ID           pgtype.UUID        `json:"id"`
+	ID           int64              `json:"id"`
 	Name         string             `json:"name"`
 	Email        string             `json:"email"`
 	PasswordHash string             `json:"password_hash"`

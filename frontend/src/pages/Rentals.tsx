@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from "react"
+import { useState, useEffect, type FormEvent } from "react"
 import { KeyRound, Plus } from "lucide-react"
 import { api, type Reservation, type Property } from "@/lib/api"
 import { errorMessage } from "@/lib/error-message"
@@ -78,52 +78,32 @@ export default function Rentals() {
     const debouncedProperty = useDebouncedValue(filterProperty, 300)
     const debouncedGuest = useDebouncedValue(filterGuest, 300)
 
-    const prevPage = useRef(page)
-    const prevFilters = useRef({ debouncedProperty, debouncedGuest, filterCheckInFrom, filterCheckOutTo })
-    const fetched = useRef(false)
-
     const hasFilters = filterProperty !== "" || filterGuest !== "" || filterCheckInFrom !== "" || filterCheckOutTo !== ""
 
     useEffect(() => {
-        const filtersChanged = prevFilters.current.debouncedProperty !== debouncedProperty ||
-            prevFilters.current.debouncedGuest !== debouncedGuest ||
-            prevFilters.current.filterCheckInFrom !== filterCheckInFrom ||
-            prevFilters.current.filterCheckOutTo !== filterCheckOutTo
-
-        let shouldFetch = !fetched.current || prevPage.current !== page
-
-        if (filtersChanged) {
-            prevFilters.current = { debouncedProperty, debouncedGuest, filterCheckInFrom, filterCheckOutTo }
-            if (page !== 1) {
-                setPage(1)
-                return
+        let cancelled = false
+        setLoading(true)
+        setLoadError("")
+        const checkInFrom = filterCheckInFrom ? new Date(filterCheckInFrom).toISOString() : undefined
+        const checkOutTo = filterCheckOutTo ? new Date(filterCheckOutTo).toISOString() : undefined
+        api.listReservations(page, debouncedProperty, debouncedGuest, checkInFrom, checkOutTo).then((data) => {
+            if (!cancelled) {
+                setReservations(data.reservations || [])
+                setPages(data.pages)
             }
-            shouldFetch = true
-        }
-
-        if (shouldFetch) {
-            fetched.current = true
-            prevPage.current = page
-            let cancelled = false
-            setLoading(true)
-            setLoadError("")
-            const checkInFrom = filterCheckInFrom ? new Date(filterCheckInFrom).toISOString() : undefined
-            const checkOutTo = filterCheckOutTo ? new Date(filterCheckOutTo).toISOString() : undefined
-            api.listReservations(page, debouncedProperty, debouncedGuest, checkInFrom, checkOutTo).then((data) => {
-                if (!cancelled) {
-                    setReservations(data.reservations || [])
-                    setPages(data.pages)
-                }
-            }).catch((err) => {
-                if (!cancelled) {
-                    setLoadError(errorMessage(err, "failed to load reservations"))
-                }
-            }).finally(() => {
-                if (!cancelled) setLoading(false)
-            })
-            return () => { cancelled = true; fetched.current = false }
-        }
+        }).catch((err) => {
+            if (!cancelled) {
+                setLoadError(errorMessage(err, "failed to load reservations"))
+            }
+        }).finally(() => {
+            if (!cancelled) setLoading(false)
+        })
+        return () => { cancelled = true }
     }, [page, debouncedProperty, debouncedGuest, filterCheckInFrom, filterCheckOutTo])
+
+    useEffect(() => {
+        if (page !== 1) setPage(1)
+    }, [debouncedProperty, debouncedGuest, filterCheckInFrom, filterCheckOutTo])
 
     useEffect(() => {
         if (dialogOpen) {
@@ -167,7 +147,6 @@ export default function Rentals() {
                 setReservations([newReservation, ...reservations])
                 setPages(Math.ceil((reservations.length + 1) / PAGE_SIZE))
             } else {
-                prevPage.current = -1
                 setPage(1)
             }
         } catch (err) {
@@ -298,7 +277,7 @@ export default function Rentals() {
                     <div className="flex-1 flex items-center justify-center p-12">
                         <Spinner />
                     </div>
-                ) : reservations.length === 0 && !hasFilters ? (
+                ) : (reservations?.length ?? 0) === 0 && !hasFilters ? (
                     <div className="flex-1 flex items-center justify-center">
                         <EmptyState
                             icon={KeyRound}
@@ -307,7 +286,7 @@ export default function Rentals() {
                             className="border-0"
                         />
                     </div>
-                ) : reservations.length === 0 && hasFilters ? (
+                ) : (reservations?.length ?? 0) === 0 && hasFilters ? (
                     <div className="flex-1 flex items-center justify-center">
                         <EmptyState
                             icon={KeyRound}
