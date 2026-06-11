@@ -38,7 +38,7 @@ FROM properties
 WHERE owner_id = $1
 `
 
-func (q *Queries) CountPropertiesByOwner(ctx context.Context, ownerID pgtype.UUID) (int64, error) {
+func (q *Queries) CountPropertiesByOwner(ctx context.Context, ownerID int64) (int64, error) {
 	row := q.db.QueryRow(ctx, countPropertiesByOwner, ownerID)
 	var count int64
 	err := row.Scan(&count)
@@ -52,9 +52,9 @@ RETURNING id, owner_id, title, address, created_at, updated_at
 `
 
 type CreatePropertyParams struct {
-	OwnerID pgtype.UUID `json:"owner_id"`
-	Title   string      `json:"title"`
-	Address string      `json:"address"`
+	OwnerID int64  `json:"owner_id"`
+	Title   string `json:"title"`
+	Address string `json:"address"`
 }
 
 func (q *Queries) CreateProperty(ctx context.Context, arg CreatePropertyParams) (Property, error) {
@@ -80,7 +80,7 @@ RETURNING id, property_id, property_name, booked_by, guest_name, check_in, check
 type CreateReservationParams struct {
 	PropertyID   pgtype.UUID        `json:"property_id"`
 	PropertyName string             `json:"property_name"`
-	BookedBy     pgtype.UUID        `json:"booked_by"`
+	BookedBy     int64              `json:"booked_by"`
 	GuestName    string             `json:"guest_name"`
 	CheckIn      pgtype.Timestamptz `json:"check_in"`
 	CheckOut     pgtype.Timestamptz `json:"check_out"`
@@ -117,7 +117,7 @@ RETURNING id, user_id, token, expires_at, created_at
 `
 
 type CreateSessionParams struct {
-	UserID    pgtype.UUID        `json:"user_id"`
+	UserID    int64              `json:"user_id"`
 	Token     string             `json:"token"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 }
@@ -149,7 +149,7 @@ type CreateUserParams struct {
 }
 
 type CreateUserRow struct {
-	ID        pgtype.UUID        `json:"id"`
+	ID        int64              `json:"id"`
 	Name      string             `json:"name"`
 	Email     string             `json:"email"`
 	Type      string             `json:"type"`
@@ -214,12 +214,12 @@ WHERE s.token = $1 AND s.expires_at > now()
 `
 
 type GetSessionByTokenRow struct {
-	ID        pgtype.UUID        `json:"id"`
-	UserID    pgtype.UUID        `json:"user_id"`
+	ID        int64              `json:"id"`
+	UserID    int64              `json:"user_id"`
 	Token     string             `json:"token"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UID       pgtype.UUID        `json:"u_id"`
+	UID       int64              `json:"u_id"`
 	UName     string             `json:"u_name"`
 	UEmail    string             `json:"u_email"`
 	UType     string             `json:"u_type"`
@@ -281,7 +281,7 @@ LIMIT $7 OFFSET $6
 `
 
 type ListManagerReservationsFilteredParams struct {
-	OwnerID            pgtype.UUID        `json:"owner_id"`
+	OwnerID            int64              `json:"owner_id"`
 	PropertyNameFilter pgtype.Text        `json:"property_name_filter"`
 	GuestNameFilter    pgtype.Text        `json:"guest_name_filter"`
 	CheckInFrom        pgtype.Timestamptz `json:"check_in_from"`
@@ -291,10 +291,10 @@ type ListManagerReservationsFilteredParams struct {
 }
 
 type ListManagerReservationsFilteredRow struct {
-	ID           pgtype.UUID        `json:"id"`
+	ID           int64              `json:"id"`
 	PropertyID   pgtype.UUID        `json:"property_id"`
 	PropertyName string             `json:"property_name"`
-	BookedBy     pgtype.UUID        `json:"booked_by"`
+	BookedBy     int64              `json:"booked_by"`
 	GuestName    string             `json:"guest_name"`
 	CheckIn      pgtype.Timestamptz `json:"check_in"`
 	CheckOut     pgtype.Timestamptz `json:"check_out"`
@@ -351,9 +351,9 @@ LIMIT $2 OFFSET $3
 `
 
 type ListPropertiesByOwnerParams struct {
-	OwnerID pgtype.UUID `json:"owner_id"`
-	Limit   int32       `json:"limit"`
-	Offset  int32       `json:"offset"`
+	OwnerID int64 `json:"owner_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
 }
 
 func (q *Queries) ListPropertiesByOwner(ctx context.Context, arg ListPropertiesByOwnerParams) ([]Property, error) {

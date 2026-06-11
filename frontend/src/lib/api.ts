@@ -10,7 +10,7 @@ export interface SessionData {
 
 export interface Property {
     id: string
-    owner_id: string
+    owner_id: number
     title: string
     address: string
     created_at: string
@@ -18,10 +18,10 @@ export interface Property {
 }
 
 export interface Reservation {
-    id: string
+    id: number
     property_id: string
     property_name: string
-    booked_by: string
+    booked_by: number
     guest_name: string
     check_in: string
     check_out: string

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
@@ -69,7 +70,7 @@ func getSessionFromDB(ctx context.Context, queries *db.Queries, rdb *redis.Clien
 
 	session := &handler.SessionData{
 		Token:     row.Token,
-		UserID:    row.UID.String(),
+		UserID:    strconv.FormatInt(row.UID, 10),
 		UserName:  row.UName,
 		UserEmail: row.UEmail,
 		UserType:  row.UType,

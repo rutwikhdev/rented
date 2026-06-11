@@ -2,8 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"rented/internal/db"
@@ -30,8 +30,8 @@ func (h *Handler) ListProperties(c echo.Context) error {
 	}
 	offset := (req.Page - 1) * pageSize
 
-	var ownerID pgtype.UUID
-	if err := ownerID.Scan(session.UserID); err != nil {
+	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
+	if err != nil {
 		h.logger.Error("list properties: invalid session user id", err)
 		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
 	}
@@ -85,8 +85,8 @@ func (h *Handler) CreateProperty(c echo.Context) error {
 		return errorResponse(c, http.StatusBadRequest, "title and address are required")
 	}
 
-	var ownerID pgtype.UUID
-	if err := ownerID.Scan(session.UserID); err != nil {
+	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
+	if err != nil {
 		h.logger.Error("create property: invalid session user id", err)
 		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
 	}
