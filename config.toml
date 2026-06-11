@@ -1,0 +1,8 @@
+[server]
+port = 8080
+
+[database]
+url = "postgres://postgres:postgres@localhost:5432/rented?sslmode=disable"
+
+[redis]
+url = "redis://localhost:6379/0"
