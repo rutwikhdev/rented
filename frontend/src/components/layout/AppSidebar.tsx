@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth"
 
 const navItems = [
     { title: "Properties", url: "/properties", icon: Building2 },
-    { title: "Rentals", url: "/rentals", icon: KeyRound },
+    { title: "Reservations", url: "/rentals", icon: KeyRound },
 ]
 
 export function AppSidebar() {
