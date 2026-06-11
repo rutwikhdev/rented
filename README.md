@@ -1,6 +1,9 @@
 # Rented
 
-Property management platform — backend (Go + Echo) + frontend (React + Vite).
+Rental Service management platform
+
+<img width="1848" height="1019" alt="image" src="https://github.com/user-attachments/assets/f17506ad-4dd0-4ffb-abe2-c829f37652fb" />
+
 
 ## Prerequisites
 
