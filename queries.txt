@@ -1,0 +1,46 @@
+# Public endpoints
+
+curl -s http://localhost:8080/health
+
+curl -s -X POST http://localhost:8080/api/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice","email":"alice@test.com","password":"secret123","type":"manager"}'
+
+curl -s -X POST http://localhost:8080/api/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Bob","email":"bob@test.com","password":"secret123","type":"guest"}'
+
+curl -s -X POST http://localhost:8080/api/v1/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alice@test.com","password":"secret123"}'
+
+# Authenticated endpoints — replace TOKEN with the value from login response
+
+curl -s -X POST http://localhost:8080/api/v1/logout \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN"
+
+curl -s -X POST http://localhost:8080/api/v1/property \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"page":1}'
+
+curl -s -X POST http://localhost:8080/api/v1/property/new \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"title":"Beach House","address":"42 Ocean Drive, Miami"}'
+
+curl -s -X POST http://localhost:8080/api/v1/reservation \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"page":1}'
+
+curl -s -X POST http://localhost:8080/api/v1/reservation \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"page":1,"guest_name":"Charlie","check_in_from":"2026-06-01T00:00:00Z","check_out_to":"2026-12-31T23:59:59Z"}'
+
+curl -s -X POST http://localhost:8080/api/v1/reservation/new \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{"property_id":"REPLACE_WITH_REAL_UUID","guest_name":"Charlie","checkin":"2026-07-01T11:00","checkout":"2026-07-05T10:00","timezone":"America/New_York"}'
