@@ -136,18 +136,6 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		return errorResponse(c, http.StatusBadRequest, "invalid property_id")
 	}
 
-	property, err := h.queries.GetPropertyByID(c.Request().Context(), pid)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return errorResponse(c, http.StatusNotFound, "property not found")
-		}
-		return h.internalError(c, "create reservation: failed to get property", err)
-	}
-
-	if strconv.FormatInt(property.OwnerID, 10) != session.UserID && session.UserType != "manager" {
-		return errorResponse(c, http.StatusNotFound, "property not found")
-	}
-
 	checkIn, err := utils.ParseLocalToUTC(req.CheckIn, req.Timezone, true)
 	if err != nil {
 		return errorResponse(c, http.StatusBadRequest, "invalid checkin datetime or timezone")
@@ -180,6 +168,18 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		CheckOut:   checkOut,
 	}); len(errs) > 0 {
 		return errorResponse(c, http.StatusConflict, errs[0].Error())
+	}
+
+	property, err := h.queries.GetPropertyByID(c.Request().Context(), pid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errorResponse(c, http.StatusNotFound, "property not found")
+		}
+		return h.internalError(c, "create reservation: failed to get property", err)
+	}
+
+	if strconv.FormatInt(property.OwnerID, 10) != session.UserID && session.UserType != "manager" {
+		return errorResponse(c, http.StatusNotFound, "property not found")
 	}
 
 	reservation, err := h.queries.CreateReservation(c.Request().Context(), db.CreateReservationParams{
