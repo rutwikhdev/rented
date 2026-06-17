@@ -83,9 +83,10 @@ func main() {
 	auth := v1.Group("", mw.Auth(queries, redisClient, logger))
 	auth.POST("/logout", h.Logout)
 	auth.POST("/property", h.ListProperties)
-	auth.POST("/property/new", h.CreateProperty)
+	auth.PUT("/property/new", h.CreateProperty)
 	auth.POST("/reservation", h.ListReservations)
-	auth.POST("/reservation/new", h.CreateReservation)
+	auth.PUT("/reservation/new", h.CreateReservation)
+	auth.PUT("/reservation/edit/:id", h.UpdateReservation)
 
 	go func() {
 		addr := fmt.Sprintf(":%d", cfg.Server.Port)

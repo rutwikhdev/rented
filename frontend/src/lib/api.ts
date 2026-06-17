@@ -98,7 +98,7 @@ export const api = {
 
     createProperty: (title: string, address: string) =>
         request<Property>("/property/new", {
-            method: "POST",
+            method: "PUT",
             body: JSON.stringify({ title, address }),
         }),
 
@@ -116,7 +116,19 @@ export const api = {
 
     createReservation: (propertyId: string, guestName: string, checkIn: string, checkOut: string) =>
         request<Reservation>("/reservation/new", {
-            method: "POST",
+            method: "PUT",
+            body: JSON.stringify({
+                property_id: propertyId,
+                guest_name: guestName,
+                checkin: checkIn,
+                checkout: checkOut,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }),
+        }),
+
+    updateReservation: (id: number, propertyId: string, guestName: string, checkIn: string, checkOut: string) =>
+        request<Reservation>(`/reservation/edit/${id}`, {
+            method: "PUT",
             body: JSON.stringify({
                 property_id: propertyId,
                 guest_name: guestName,

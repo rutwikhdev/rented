@@ -30,10 +30,16 @@ func (r *NoOverlapRule) Check(ctx context.Context, input RuleInput) error {
 	checkOut.Time = input.CheckOut
 	checkOut.Valid = true
 
+	excludeReservationID := pgtype.Int8{}
+	if input.ExcludeReservationID > 0 {
+		excludeReservationID = pgtype.Int8{Int64: input.ExcludeReservationID, Valid: true}
+	}
+
 	count, err := r.queries.CheckOverlappingReservations(ctx, db.CheckOverlappingReservationsParams{
-		PropertyID:  input.PropertyID,
-		NewCheckIn:  checkIn,
-		NewCheckOut: checkOut,
+		PropertyID:           input.PropertyID,
+		ExcludeReservationID: excludeReservationID,
+		NewCheckIn:           checkIn,
+		NewCheckOut:          checkOut,
 	})
 	if err != nil {
 		return err

@@ -33,7 +33,6 @@ CREATE INDEX IF NOT EXISTS idx_properties_owner_id ON properties(owner_id);
 CREATE TABLE IF NOT EXISTS reservations (
     id BIGSERIAL PRIMARY KEY,
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-    property_name TEXT NOT NULL,
     booked_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     guest_name TEXT NOT NULL,
     check_in TIMESTAMPTZ NOT NULL,
@@ -41,5 +40,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE reservations DROP COLUMN IF EXISTS property_name;
 
 CREATE INDEX IF NOT EXISTS idx_reservations_property_id ON reservations(property_id);

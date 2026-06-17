@@ -24,6 +24,33 @@ type listReservationsRequest struct {
 	CheckOutTo   string `json:"check_out_to"`
 }
 
+type createReservationRequest struct {
+	PropertyID string `json:"property_id"`
+	GuestName  string `json:"guest_name"`
+	CheckIn    string `json:"checkin"`
+	CheckOut   string `json:"checkout"`
+	Timezone   string `json:"timezone"`
+}
+
+type reservationResponse struct {
+	ID           int64              `json:"id"`
+	PropertyID   pgtype.UUID        `json:"property_id"`
+	PropertyName string             `json:"property_name"`
+	BookedBy     int64              `json:"booked_by"`
+	GuestName    string             `json:"guest_name"`
+	CheckIn      pgtype.Timestamptz `json:"check_in"`
+	CheckOut     pgtype.Timestamptz `json:"check_out"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type listReservationsResponse struct {
+	Reservations []reservationResponse `json:"reservations"`
+	Total        int64                 `json:"total"`
+	Page         int                   `json:"page"`
+	Pages        int                   `json:"pages"`
+}
+
 func (h *Handler) ListReservations(c echo.Context) error {
 	session, ok := c.Get("session").(*SessionData)
 	if !ok {
@@ -88,21 +115,27 @@ func (h *Handler) ListReservations(c echo.Context) error {
 	}
 
 	pages := calcPages(int(total), pageSize)
+	items := make([]reservationResponse, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, reservationResponse{
+			ID:           row.ID,
+			PropertyID:   row.PropertyID,
+			PropertyName: row.PropertyName,
+			BookedBy:     row.BookedBy,
+			GuestName:    row.GuestName,
+			CheckIn:      row.CheckIn,
+			CheckOut:     row.CheckOut,
+			CreatedAt:    row.CreatedAt,
+			UpdatedAt:    row.UpdatedAt,
+		})
+	}
 
-	return c.JSON(http.StatusOK, map[string]any{
-		"reservations": rows,
-		"total":        total,
-		"page":         req.Page,
-		"pages":        pages,
+	return c.JSON(http.StatusOK, listReservationsResponse{
+		Reservations: items,
+		Total:        total,
+		Page:         req.Page,
+		Pages:        pages,
 	})
-}
-
-type createReservationRequest struct {
-	PropertyID string `json:"property_id"`
-	GuestName  string `json:"guest_name"`
-	CheckIn    string `json:"checkin"`
-	CheckOut   string `json:"checkout"`
-	Timezone   string `json:"timezone"`
 }
 
 func (h *Handler) lockReservationProperty(propertyID string) func() {
@@ -134,6 +167,18 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 	var pid pgtype.UUID
 	if err := pid.Scan(req.PropertyID); err != nil {
 		return errorResponse(c, http.StatusBadRequest, "invalid property_id")
+	}
+
+	property, err := h.queries.GetPropertyByID(c.Request().Context(), pid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errorResponse(c, http.StatusNotFound, "property not found")
+		}
+		return h.internalError(c, "create reservation: failed to get property", err)
+	}
+
+	if strconv.FormatInt(property.OwnerID, 10) != session.UserID && session.UserType != "manager" {
+		return errorResponse(c, http.StatusNotFound, "property not found")
 	}
 
 	checkIn, err := utils.ParseLocalToUTC(req.CheckIn, req.Timezone, true)
@@ -170,29 +215,130 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		return errorResponse(c, http.StatusConflict, errs[0].Error())
 	}
 
-	property, err := h.queries.GetPropertyByID(c.Request().Context(), pid)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return errorResponse(c, http.StatusNotFound, "property not found")
-		}
-		return h.internalError(c, "create reservation: failed to get property", err)
-	}
-
-	if strconv.FormatInt(property.OwnerID, 10) != session.UserID && session.UserType != "manager" {
-		return errorResponse(c, http.StatusNotFound, "property not found")
-	}
-
 	reservation, err := h.queries.CreateReservation(c.Request().Context(), db.CreateReservationParams{
-		PropertyID:   pid,
-		PropertyName: property.Title,
-		BookedBy:     bookedBy,
-		GuestName:    req.GuestName,
-		CheckIn:      checkInTs,
-		CheckOut:     checkOutTs,
+		PropertyID: pid,
+		BookedBy:   bookedBy,
+		GuestName:  req.GuestName,
+		CheckIn:    checkInTs,
+		CheckOut:   checkOutTs,
 	})
 	if err != nil {
 		return h.internalError(c, "create reservation: db query failed", err)
 	}
 
-	return c.JSON(http.StatusCreated, reservation)
+	return c.JSON(http.StatusCreated, reservationResponse{
+		ID:           reservation.ID,
+		PropertyID:   reservation.PropertyID,
+		PropertyName: property.Title,
+		BookedBy:     reservation.BookedBy,
+		GuestName:    reservation.GuestName,
+		CheckIn:      reservation.CheckIn,
+		CheckOut:     reservation.CheckOut,
+		CreatedAt:    reservation.CreatedAt,
+		UpdatedAt:    reservation.UpdatedAt,
+	})
+}
+
+func (h *Handler) UpdateReservation(c echo.Context) error {
+	session, ok := c.Get("session").(*SessionData)
+	if !ok {
+		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+	}
+
+	reservationID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || reservationID < 1 {
+		return errorResponse(c, http.StatusBadRequest, "invalid reservation_id")
+	}
+
+	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
+	if err != nil {
+		h.logger.Error("update reservation: invalid session user id", err)
+		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+	}
+
+	_, err = h.queries.GetManagerReservationByID(c.Request().Context(), db.GetManagerReservationByIDParams{
+		ID:      reservationID,
+		OwnerID: ownerID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errorResponse(c, http.StatusNotFound, "reservation not found")
+		}
+		return h.internalError(c, "update reservation: failed to get reservation", err)
+	}
+
+	var req createReservationRequest
+	if err := c.Bind(&req); err != nil {
+		h.logger.Error("update reservation: failed to bind request", err)
+		return invalidRequestBody(c)
+	}
+
+	if req.PropertyID == "" || req.GuestName == "" || req.CheckIn == "" || req.CheckOut == "" {
+		return errorResponse(c, http.StatusBadRequest, "property_id, guest_name, checkin, and checkout are required")
+	}
+	if req.Timezone == "" {
+		return errorResponse(c, http.StatusBadRequest, "timezone is required")
+	}
+
+	var pid pgtype.UUID
+	if err := pid.Scan(req.PropertyID); err != nil {
+		return errorResponse(c, http.StatusBadRequest, "invalid property_id")
+	}
+
+	property, err := h.queries.GetPropertyByID(c.Request().Context(), pid)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errorResponse(c, http.StatusNotFound, "property not found")
+		}
+		return h.internalError(c, "update reservation: failed to get property", err)
+	}
+	if property.OwnerID != ownerID {
+		return errorResponse(c, http.StatusNotFound, "property not found")
+	}
+
+	checkIn, err := utils.ParseLocalToUTC(req.CheckIn, req.Timezone, true)
+	if err != nil {
+		return errorResponse(c, http.StatusBadRequest, "invalid checkin datetime or timezone")
+	}
+	checkOut, err := utils.ParseLocalToUTC(req.CheckOut, req.Timezone, false)
+	if err != nil {
+		return errorResponse(c, http.StatusBadRequest, "invalid checkout datetime or timezone")
+	}
+	checkInTs := pgtype.Timestamptz{Time: checkIn, Valid: true}
+	checkOutTs := pgtype.Timestamptz{Time: checkOut, Valid: true}
+
+	unlock := h.lockReservationProperty(req.PropertyID)
+	defer unlock()
+
+	if errs := h.rules.Run(c.Request().Context(), rules.RuleInput{
+		PropertyID:           pid,
+		CheckIn:              checkIn,
+		CheckOut:             checkOut,
+		ExcludeReservationID: reservationID,
+	}); len(errs) > 0 {
+		return errorResponse(c, http.StatusConflict, errs[0].Error())
+	}
+
+	reservation, err := h.queries.UpdateReservation(c.Request().Context(), db.UpdateReservationParams{
+		ID:         reservationID,
+		PropertyID: pid,
+		GuestName:  req.GuestName,
+		CheckIn:    checkInTs,
+		CheckOut:   checkOutTs,
+	})
+	if err != nil {
+		return h.internalError(c, "update reservation: db query failed", err)
+	}
+
+	return c.JSON(http.StatusOK, reservationResponse{
+		ID:           reservation.ID,
+		PropertyID:   reservation.PropertyID,
+		PropertyName: property.Title,
+		BookedBy:     reservation.BookedBy,
+		GuestName:    reservation.GuestName,
+		CheckIn:      reservation.CheckIn,
+		CheckOut:     reservation.CheckOut,
+		CreatedAt:    reservation.CreatedAt,
+		UpdatedAt:    reservation.UpdatedAt,
+	})
 }

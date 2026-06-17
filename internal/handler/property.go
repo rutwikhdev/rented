@@ -4,12 +4,34 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 
 	"rented/internal/db"
 )
 
 const pageSize = 50
+
+type createPropertyRequest struct {
+	Title   string `json:"title"`
+	Address string `json:"address"`
+}
+
+type propertyResponse struct {
+	ID        pgtype.UUID        `json:"id"`
+	OwnerID   int64              `json:"owner_id"`
+	Title     string             `json:"title"`
+	Address   string             `json:"address"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type listPropertiesResponse struct {
+	Properties []propertyResponse `json:"properties"`
+	Total      int64              `json:"total"`
+	Page       int                `json:"page"`
+	Pages      int                `json:"pages"`
+}
 
 func (h *Handler) ListProperties(c echo.Context) error {
 	session, ok := c.Get("session").(*SessionData)
@@ -51,18 +73,24 @@ func (h *Handler) ListProperties(c echo.Context) error {
 	}
 
 	pages := calcPages(int(total), pageSize)
+	items := make([]propertyResponse, 0, len(properties))
+	for _, property := range properties {
+		items = append(items, propertyResponse{
+			ID:        property.ID,
+			OwnerID:   property.OwnerID,
+			Title:     property.Title,
+			Address:   property.Address,
+			CreatedAt: property.CreatedAt,
+			UpdatedAt: property.UpdatedAt,
+		})
+	}
 
-	return c.JSON(http.StatusOK, map[string]any{
-		"properties": properties,
-		"total":      total,
-		"page":       req.Page,
-		"pages":      pages,
+	return c.JSON(http.StatusOK, listPropertiesResponse{
+		Properties: items,
+		Total:      total,
+		Page:       req.Page,
+		Pages:      pages,
 	})
-}
-
-type createPropertyRequest struct {
-	Title   string `json:"title"`
-	Address string `json:"address"`
 }
 
 func (h *Handler) CreateProperty(c echo.Context) error {

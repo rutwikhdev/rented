@@ -18,15 +18,14 @@ type Property struct {
 }
 
 type Reservation struct {
-	ID           int64              `json:"id"`
-	PropertyID   pgtype.UUID        `json:"property_id"`
-	PropertyName string             `json:"property_name"`
-	BookedBy     int64              `json:"booked_by"`
-	GuestName    string             `json:"guest_name"`
-	CheckIn      pgtype.Timestamptz `json:"check_in"`
-	CheckOut     pgtype.Timestamptz `json:"check_out"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	ID         int64              `json:"id"`
+	PropertyID pgtype.UUID        `json:"property_id"`
+	BookedBy   int64              `json:"booked_by"`
+	GuestName  string             `json:"guest_name"`
+	CheckIn    pgtype.Timestamptz `json:"check_in"`
+	CheckOut   pgtype.Timestamptz `json:"check_out"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Session struct {

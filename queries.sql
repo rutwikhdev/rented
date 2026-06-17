@@ -42,24 +42,41 @@ ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CreateReservation :one
-INSERT INTO reservations (property_id, property_name, booked_by, guest_name, check_in, check_out)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, property_id, property_name, booked_by, guest_name, check_in, check_out, created_at, updated_at;
+INSERT INTO reservations (property_id, booked_by, guest_name, check_in, check_out)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, property_id, booked_by, guest_name, check_in, check_out, created_at, updated_at;
 
 -- name: CheckOverlappingReservations :one
 SELECT COUNT(*)
 FROM reservations
 WHERE property_id = $1
+  AND (sqlc.narg('exclude_reservation_id')::bigint IS NULL OR id <> sqlc.narg('exclude_reservation_id')::bigint)
   AND check_out > @new_check_in
   AND check_in < @new_check_out;
 
+-- name: GetManagerReservationByID :one
+SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at
+FROM reservations r
+JOIN properties p ON r.property_id = p.id
+WHERE r.id = $1 AND p.owner_id = $2;
+
+-- name: UpdateReservation :one
+UPDATE reservations
+SET property_id = $2,
+    guest_name = $3,
+    check_in = $4,
+    check_out = $5,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, property_id, booked_by, guest_name, check_in, check_out, created_at, updated_at;
+
 -- name: ListManagerReservationsFiltered :many
-SELECT r.id, r.property_id, r.property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at,
+SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at,
        COUNT(*) OVER() AS total_count
 FROM reservations r
 JOIN properties p ON r.property_id = p.id
 WHERE p.owner_id = @owner_id
-  AND (sqlc.narg('property_name_filter')::text IS NULL OR r.property_name ILIKE '%' || sqlc.narg('property_name_filter')::text || '%')
+  AND (sqlc.narg('property_name_filter')::text IS NULL OR p.title ILIKE '%' || sqlc.narg('property_name_filter')::text || '%')
   AND (sqlc.narg('guest_name_filter')::text IS NULL OR r.guest_name ILIKE '%' || sqlc.narg('guest_name_filter')::text || '%')
   AND (sqlc.narg('check_in_from')::timestamptz IS NULL OR r.check_in >= sqlc.narg('check_in_from')::timestamptz)
   AND (sqlc.narg('check_out_to')::timestamptz IS NULL OR r.check_out <= sqlc.narg('check_out_to')::timestamptz)

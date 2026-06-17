@@ -8,9 +8,10 @@ import (
 )
 
 type RuleInput struct {
-	PropertyID pgtype.UUID
-	CheckIn    time.Time
-	CheckOut   time.Time
+	PropertyID           pgtype.UUID
+	CheckIn              time.Time
+	CheckOut             time.Time
+	ExcludeReservationID int64
 }
 
 type Rule interface {

@@ -15,18 +15,25 @@ const checkOverlappingReservations = `-- name: CheckOverlappingReservations :one
 SELECT COUNT(*)
 FROM reservations
 WHERE property_id = $1
-  AND check_out > $2
-  AND check_in < $3
+  AND ($2::bigint IS NULL OR id <> $2::bigint)
+  AND check_out > $3
+  AND check_in < $4
 `
 
 type CheckOverlappingReservationsParams struct {
-	PropertyID  pgtype.UUID        `json:"property_id"`
-	NewCheckIn  pgtype.Timestamptz `json:"new_check_in"`
-	NewCheckOut pgtype.Timestamptz `json:"new_check_out"`
+	PropertyID           pgtype.UUID        `json:"property_id"`
+	ExcludeReservationID pgtype.Int8        `json:"exclude_reservation_id"`
+	NewCheckIn           pgtype.Timestamptz `json:"new_check_in"`
+	NewCheckOut          pgtype.Timestamptz `json:"new_check_out"`
 }
 
 func (q *Queries) CheckOverlappingReservations(ctx context.Context, arg CheckOverlappingReservationsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, checkOverlappingReservations, arg.PropertyID, arg.NewCheckIn, arg.NewCheckOut)
+	row := q.db.QueryRow(ctx, checkOverlappingReservations,
+		arg.PropertyID,
+		arg.ExcludeReservationID,
+		arg.NewCheckIn,
+		arg.NewCheckOut,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -59,24 +66,22 @@ func (q *Queries) CreateProperty(ctx context.Context, arg CreatePropertyParams) 
 }
 
 const createReservation = `-- name: CreateReservation :one
-INSERT INTO reservations (property_id, property_name, booked_by, guest_name, check_in, check_out)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, property_id, property_name, booked_by, guest_name, check_in, check_out, created_at, updated_at
+INSERT INTO reservations (property_id, booked_by, guest_name, check_in, check_out)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, property_id, booked_by, guest_name, check_in, check_out, created_at, updated_at
 `
 
 type CreateReservationParams struct {
-	PropertyID   pgtype.UUID        `json:"property_id"`
-	PropertyName string             `json:"property_name"`
-	BookedBy     int64              `json:"booked_by"`
-	GuestName    string             `json:"guest_name"`
-	CheckIn      pgtype.Timestamptz `json:"check_in"`
-	CheckOut     pgtype.Timestamptz `json:"check_out"`
+	PropertyID pgtype.UUID        `json:"property_id"`
+	BookedBy   int64              `json:"booked_by"`
+	GuestName  string             `json:"guest_name"`
+	CheckIn    pgtype.Timestamptz `json:"check_in"`
+	CheckOut   pgtype.Timestamptz `json:"check_out"`
 }
 
 func (q *Queries) CreateReservation(ctx context.Context, arg CreateReservationParams) (Reservation, error) {
 	row := q.db.QueryRow(ctx, createReservation,
 		arg.PropertyID,
-		arg.PropertyName,
 		arg.BookedBy,
 		arg.GuestName,
 		arg.CheckIn,
@@ -86,7 +91,6 @@ func (q *Queries) CreateReservation(ctx context.Context, arg CreateReservationPa
 	err := row.Scan(
 		&i.ID,
 		&i.PropertyID,
-		&i.PropertyName,
 		&i.BookedBy,
 		&i.GuestName,
 		&i.CheckIn,
@@ -172,6 +176,47 @@ func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
+const getManagerReservationByID = `-- name: GetManagerReservationByID :one
+SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at
+FROM reservations r
+JOIN properties p ON r.property_id = p.id
+WHERE r.id = $1 AND p.owner_id = $2
+`
+
+type GetManagerReservationByIDParams struct {
+	ID      int64 `json:"id"`
+	OwnerID int64 `json:"owner_id"`
+}
+
+type GetManagerReservationByIDRow struct {
+	ID           int64              `json:"id"`
+	PropertyID   pgtype.UUID        `json:"property_id"`
+	PropertyName string             `json:"property_name"`
+	BookedBy     int64              `json:"booked_by"`
+	GuestName    string             `json:"guest_name"`
+	CheckIn      pgtype.Timestamptz `json:"check_in"`
+	CheckOut     pgtype.Timestamptz `json:"check_out"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetManagerReservationByID(ctx context.Context, arg GetManagerReservationByIDParams) (GetManagerReservationByIDRow, error) {
+	row := q.db.QueryRow(ctx, getManagerReservationByID, arg.ID, arg.OwnerID)
+	var i GetManagerReservationByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.PropertyID,
+		&i.PropertyName,
+		&i.BookedBy,
+		&i.GuestName,
+		&i.CheckIn,
+		&i.CheckOut,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPropertyByID = `-- name: GetPropertyByID :one
 SELECT id, owner_id, title, address, created_at, updated_at
 FROM properties
@@ -254,12 +299,12 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const listManagerReservationsFiltered = `-- name: ListManagerReservationsFiltered :many
-SELECT r.id, r.property_id, r.property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at,
+SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at,
        COUNT(*) OVER() AS total_count
 FROM reservations r
 JOIN properties p ON r.property_id = p.id
 WHERE p.owner_id = $1
-  AND ($2::text IS NULL OR r.property_name ILIKE '%' || $2::text || '%')
+  AND ($2::text IS NULL OR p.title ILIKE '%' || $2::text || '%')
   AND ($3::text IS NULL OR r.guest_name ILIKE '%' || $3::text || '%')
   AND ($4::timestamptz IS NULL OR r.check_in >= $4::timestamptz)
   AND ($5::timestamptz IS NULL OR r.check_out <= $5::timestamptz)
@@ -380,4 +425,45 @@ func (q *Queries) ListPropertiesByOwner(ctx context.Context, arg ListPropertiesB
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateReservation = `-- name: UpdateReservation :one
+UPDATE reservations
+SET property_id = $2,
+    guest_name = $3,
+    check_in = $4,
+    check_out = $5,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, property_id, booked_by, guest_name, check_in, check_out, created_at, updated_at
+`
+
+type UpdateReservationParams struct {
+	ID         int64              `json:"id"`
+	PropertyID pgtype.UUID        `json:"property_id"`
+	GuestName  string             `json:"guest_name"`
+	CheckIn    pgtype.Timestamptz `json:"check_in"`
+	CheckOut   pgtype.Timestamptz `json:"check_out"`
+}
+
+func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationParams) (Reservation, error) {
+	row := q.db.QueryRow(ctx, updateReservation,
+		arg.ID,
+		arg.PropertyID,
+		arg.GuestName,
+		arg.CheckIn,
+		arg.CheckOut,
+	)
+	var i Reservation
+	err := row.Scan(
+		&i.ID,
+		&i.PropertyID,
+		&i.BookedBy,
+		&i.GuestName,
+		&i.CheckIn,
+		&i.CheckOut,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
