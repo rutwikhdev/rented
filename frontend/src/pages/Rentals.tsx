@@ -268,7 +268,7 @@ export default function Rentals() {
                 </div>
             </div>
 
-            <div className="rounded-lg border bg-card flex flex-col flex-1 overflow-hidden min-h-0">
+            <div className="rounded-lg border bg-card flex flex-col flex-1 overflow-hidden min-h-0 max-h-[72vh]">
                 {loadError ? (
                     <div className="flex-1 flex items-center justify-center p-6 text-sm text-destructive">
                         {loadError}
@@ -296,7 +296,7 @@ export default function Rentals() {
                         />
                     </div>
                 ) : (
-                    <div className="flex-1 overflow-y-auto min-h-0">
+                    <div className="flex-1 overflow-y-auto min-h-0 max-full">
                         <Table className="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card">
                             <TableHeader>
                                 <TableRow>
