@@ -34,16 +34,12 @@ FROM properties
 WHERE id = $1;
 
 -- name: ListPropertiesByOwner :many
-SELECT id, owner_id, title, address, created_at, updated_at
+SELECT id, owner_id, title, address, created_at, updated_at,
+       COUNT(*) OVER() AS total_count
 FROM properties
 WHERE owner_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
-
--- name: CountPropertiesByOwner :one
-SELECT COUNT(*)
-FROM properties
-WHERE owner_id = $1;
 
 -- name: CreateReservation :one
 INSERT INTO reservations (property_id, property_name, booked_by, guest_name, check_in, check_out)

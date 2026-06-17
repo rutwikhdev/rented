@@ -32,19 +32,6 @@ func (q *Queries) CheckOverlappingReservations(ctx context.Context, arg CheckOve
 	return count, err
 }
 
-const countPropertiesByOwner = `-- name: CountPropertiesByOwner :one
-SELECT COUNT(*)
-FROM properties
-WHERE owner_id = $1
-`
-
-func (q *Queries) CountPropertiesByOwner(ctx context.Context, ownerID int64) (int64, error) {
-	row := q.db.QueryRow(ctx, countPropertiesByOwner, ownerID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createProperty = `-- name: CreateProperty :one
 INSERT INTO properties (owner_id, title, address)
 VALUES ($1, $2, $3)
@@ -343,7 +330,8 @@ func (q *Queries) ListManagerReservationsFiltered(ctx context.Context, arg ListM
 }
 
 const listPropertiesByOwner = `-- name: ListPropertiesByOwner :many
-SELECT id, owner_id, title, address, created_at, updated_at
+SELECT id, owner_id, title, address, created_at, updated_at,
+       COUNT(*) OVER() AS total_count
 FROM properties
 WHERE owner_id = $1
 ORDER BY created_at DESC
@@ -356,15 +344,25 @@ type ListPropertiesByOwnerParams struct {
 	Offset  int32 `json:"offset"`
 }
 
-func (q *Queries) ListPropertiesByOwner(ctx context.Context, arg ListPropertiesByOwnerParams) ([]Property, error) {
+type ListPropertiesByOwnerRow struct {
+	ID         pgtype.UUID        `json:"id"`
+	OwnerID    int64              `json:"owner_id"`
+	Title      string             `json:"title"`
+	Address    string             `json:"address"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	TotalCount int64              `json:"total_count"`
+}
+
+func (q *Queries) ListPropertiesByOwner(ctx context.Context, arg ListPropertiesByOwnerParams) ([]ListPropertiesByOwnerRow, error) {
 	rows, err := q.db.Query(ctx, listPropertiesByOwner, arg.OwnerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Property
+	var items []ListPropertiesByOwnerRow
 	for rows.Next() {
-		var i Property
+		var i ListPropertiesByOwnerRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -372,6 +370,7 @@ func (q *Queries) ListPropertiesByOwner(ctx context.Context, arg ListPropertiesB
 			&i.Address,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

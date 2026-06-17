@@ -1,2 +1,7 @@
 .agents*
 .frontend/node_modules*
+prompts/*
+concurrent*
+deploy*
+seed*
+server.log
