@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v4"
 )
@@ -57,6 +58,66 @@ func TestInvalidRequestBody(t *testing.T) {
 	}
 
 	assertErrorResponse(t, rec, http.StatusBadRequest, "invalid request body")
+}
+
+func TestNormalizePage(t *testing.T) {
+	tests := []struct {
+		name       string
+		page       int
+		wantPage   int
+		wantOffset int32
+	}{
+		{
+			name:       "default page",
+			page:       0,
+			wantPage:   1,
+			wantOffset: 0,
+		},
+		{
+			name:       "second page",
+			page:       2,
+			wantPage:   2,
+			wantOffset: pageSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPage, gotOffset := normalizePage(tt.page)
+			if gotPage != tt.wantPage || gotOffset != tt.wantOffset {
+				t.Fatalf("normalizePage(%d) = (%d, %d), want (%d, %d)",
+					tt.page,
+					gotPage,
+					gotOffset,
+					tt.wantPage,
+					tt.wantOffset,
+				)
+			}
+		})
+	}
+}
+
+func TestPGTimestamp(t *testing.T) {
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	got := pgTimestamp(now)
+	if !got.Valid {
+		t.Fatal("pgTimestamp().Valid = false, want true")
+	}
+	if !got.Time.Equal(now) {
+		t.Fatalf("pgTimestamp().Time = %v, want %v", got.Time, now)
+	}
+}
+
+func TestTextFilter(t *testing.T) {
+	empty := textFilter("")
+	if empty.Valid {
+		t.Fatal("textFilter(empty).Valid = true, want false")
+	}
+
+	filled := textFilter("guest")
+	if !filled.Valid || filled.String != "guest" {
+		t.Fatalf("textFilter() = (%q, %t), want (%q, true)", filled.String, filled.Valid, "guest")
+	}
 }
 
 func assertErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantError string) {

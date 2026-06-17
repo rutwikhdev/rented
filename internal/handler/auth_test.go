@@ -79,11 +79,59 @@ func TestHandler_LoginValidation(t *testing.T) {
 	}
 }
 
+func TestExtractToken(t *testing.T) {
+	tests := []struct {
+		name      string
+		header    string
+		wantToken string
+	}{
+		{
+			name:      "bearer token",
+			header:    "Bearer abc123",
+			wantToken: "abc123",
+		},
+		{
+			name:      "missing bearer prefix",
+			header:    "abc123",
+			wantToken: "",
+		},
+		{
+			name:      "empty header",
+			header:    "",
+			wantToken: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Authorization", tt.header)
+			c := e.NewContext(req, httptest.NewRecorder())
+
+			if got := ExtractToken(c); got != tt.wantToken {
+				t.Fatalf("ExtractToken() = %q, want %q", got, tt.wantToken)
+			}
+		})
+	}
+}
+
 func runJSONHandler(
 	t *testing.T,
 	method string,
 	target string,
 	body string,
+	handler func(echo.Context) error,
+) *httptest.ResponseRecorder {
+	return runJSONHandlerWithSession(t, method, target, body, nil, handler)
+}
+
+func runJSONHandlerWithSession(
+	t *testing.T,
+	method string,
+	target string,
+	body string,
+	session *SessionData,
 	handler func(echo.Context) error,
 ) *httptest.ResponseRecorder {
 	t.Helper()
@@ -93,6 +141,9 @@ func runJSONHandler(
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	if session != nil {
+		c.Set("session", session)
+	}
 
 	if err := handler(c); err != nil {
 		t.Fatalf("handler error = %v", err)
