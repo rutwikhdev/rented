@@ -12,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
 
@@ -42,10 +41,17 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+type authenticatedUser struct {
+	ID    int64
+	Name  string
+	Email string
+	Type  string
+}
+
 func (h *Handler) Signup(c echo.Context) error {
 	var req signupRequest
 	if err := c.Bind(&req); err != nil {
-		h.logger.Error("signup: failed to bind request", err)
+		h.logError("signup: failed to bind request", err)
 		return invalidRequestBody(c)
 	}
 
@@ -83,7 +89,7 @@ func (h *Handler) Signup(c echo.Context) error {
 		Type:         userType,
 	})
 	if err != nil {
-		h.logger.Error("signup: failed to create user", err, "email", req.Email)
+		h.logError("signup: failed to create user", err, "email", req.Email)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return errorResponse(c, http.StatusConflict, "email already exists")
@@ -91,35 +97,15 @@ func (h *Handler) Signup(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, "internal server error")
 	}
 
-	token, err := generateToken()
-	if err != nil {
-		return h.internalError(c, "signup: failed to generate token", err)
-	}
-
-	expiresAt := time.Now().Add(sessionTTL)
-
-	var expiresAtPg pgtype.Timestamptz
-	expiresAtPg.Time = expiresAt
-	expiresAtPg.Valid = true
-
-	_, err = h.queries.CreateSession(c.Request().Context(), db.CreateSessionParams{
-		UserID:    user.ID,
-		Token:     token,
-		ExpiresAt: expiresAtPg,
+	session, err := h.createAuthenticatedSession(c.Request().Context(), authenticatedUser{
+		ID:    user.ID,
+		Name:  user.Name,
+		Email: user.Email,
+		Type:  user.Type,
 	})
 	if err != nil {
 		return h.internalError(c, "signup: failed to create session", err, "user_id", user.ID)
 	}
-
-	session := SessionData{
-		Token:     token,
-		UserID:    strconv.FormatInt(user.ID, 10),
-		UserName:  user.Name,
-		UserEmail: user.Email,
-		UserType:  user.Type,
-	}
-
-	h.cacheSession(c.Request().Context(), token, session, expiresAt)
 
 	return c.JSON(http.StatusCreated, session)
 }
@@ -127,7 +113,7 @@ func (h *Handler) Signup(c echo.Context) error {
 func (h *Handler) Login(c echo.Context) error {
 	var req loginRequest
 	if err := c.Bind(&req); err != nil {
-		h.logger.Error("login: failed to bind request", err)
+		h.logError("login: failed to bind request", err)
 		return invalidRequestBody(c)
 	}
 
@@ -139,7 +125,7 @@ func (h *Handler) Login(c echo.Context) error {
 
 	user, err := h.queries.GetUserByEmail(c.Request().Context(), req.Email)
 	if err != nil {
-		h.logger.Error("login: failed to get user", err, "email", req.Email)
+		h.logError("login: failed to get user", err, "email", req.Email)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errorResponse(c, http.StatusUnauthorized, "invalid credentials")
 		}
@@ -150,35 +136,15 @@ func (h *Handler) Login(c echo.Context) error {
 		return errorResponse(c, http.StatusUnauthorized, "invalid credentials")
 	}
 
-	token, err := generateToken()
-	if err != nil {
-		return h.internalError(c, "login: failed to generate token", err)
-	}
-
-	expiresAt := time.Now().Add(sessionTTL)
-
-	var expiresAtPg pgtype.Timestamptz
-	expiresAtPg.Time = expiresAt
-	expiresAtPg.Valid = true
-
-	_, err = h.queries.CreateSession(c.Request().Context(), db.CreateSessionParams{
-		UserID:    user.ID,
-		Token:     token,
-		ExpiresAt: expiresAtPg,
+	session, err := h.createAuthenticatedSession(c.Request().Context(), authenticatedUser{
+		ID:    user.ID,
+		Name:  user.Name,
+		Email: user.Email,
+		Type:  user.Type,
 	})
 	if err != nil {
 		return h.internalError(c, "login: failed to create session", err, "user_id", user.ID)
 	}
-
-	session := SessionData{
-		Token:     token,
-		UserID:    strconv.FormatInt(user.ID, 10),
-		UserName:  user.Name,
-		UserEmail: user.Email,
-		UserType:  user.Type,
-	}
-
-	h.cacheSession(c.Request().Context(), token, session, expiresAt)
 
 	return c.JSON(http.StatusOK, session)
 }
@@ -190,22 +156,56 @@ func (h *Handler) Logout(c echo.Context) error {
 	}
 
 	if err := h.queries.DeleteSession(c.Request().Context(), token); err != nil {
-		h.logger.Error("logout: failed to delete session from db", err)
+		h.logError("logout: failed to delete session from db", err)
 	}
-	h.redis.Del(c.Request().Context(), "session:"+token)
+	if h.redis != nil {
+		if err := h.redis.del(c.Request().Context(), "session:"+token); err != nil {
+			h.logError("logout: failed to delete session from redis", err)
+		}
+	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "logged out"})
+}
+
+func (h *Handler) createAuthenticatedSession(ctx context.Context, user authenticatedUser) (SessionData, error) {
+	token, err := generateToken()
+	if err != nil {
+		return SessionData{}, err
+	}
+
+	expiresAt := time.Now().Add(sessionTTL)
+	if _, err := h.queries.CreateSession(ctx, db.CreateSessionParams{
+		UserID:    user.ID,
+		Token:     token,
+		ExpiresAt: pgTimestamp(expiresAt),
+	}); err != nil {
+		return SessionData{}, err
+	}
+
+	session := SessionData{
+		Token:     token,
+		UserID:    strconv.FormatInt(user.ID, 10),
+		UserName:  user.Name,
+		UserEmail: user.Email,
+		UserType:  user.Type,
+	}
+
+	h.cacheSession(ctx, token, session, expiresAt)
+	return session, nil
 }
 
 func (h *Handler) cacheSession(ctx context.Context, token string, session SessionData, expiresAt time.Time) {
 	data, err := json.Marshal(session)
 	if err != nil {
-		h.logger.Error("cacheSession: failed to marshal session", err)
+		h.logError("cacheSession: failed to marshal session", err)
 		return
 	}
 	ttl := time.Until(expiresAt)
-	if err := h.redis.Set(ctx, "session:"+token, data, ttl).Err(); err != nil {
-		h.logger.Error("cacheSession: failed to set in redis", err)
+	if h.redis == nil {
+		return
+	}
+	if err := h.redis.set(ctx, "session:"+token, data, ttl); err != nil {
+		h.logError("cacheSession: failed to set in redis", err)
 	}
 }
 

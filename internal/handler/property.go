@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/labstack/echo/v4"
 
@@ -12,34 +11,29 @@ import (
 const pageSize = 50
 
 func (h *Handler) ListProperties(c echo.Context) error {
-	session, ok := c.Get("session").(*SessionData)
-	if !ok {
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+	session, err := requireSession(c)
+	if err != nil {
+		return err
 	}
 
 	var req struct {
 		Page int `json:"page"`
 	}
 	if err := c.Bind(&req); err != nil {
-		h.logger.Error("list properties: failed to bind request", err)
+		h.logError("list properties: failed to bind request", err)
 		return invalidRequestBody(c)
 	}
 
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	offset := (req.Page - 1) * pageSize
-
-	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
+	page, offset := normalizePage(req.Page)
+	ownerID, err := h.sessionUserID(c, session, "list properties")
 	if err != nil {
-		h.logger.Error("list properties: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return err
 	}
 
 	properties, err := h.queries.ListPropertiesByOwner(c.Request().Context(), db.ListPropertiesByOwnerParams{
 		OwnerID: ownerID,
 		Limit:   int32(pageSize),
-		Offset:  int32(offset),
+		Offset:  offset,
 	})
 	if err != nil {
 		return h.internalError(c, "list properties: db query failed", err)
@@ -55,7 +49,7 @@ func (h *Handler) ListProperties(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{
 		"properties": properties,
 		"total":      total,
-		"page":       req.Page,
+		"page":       page,
 		"pages":      pages,
 	})
 }
@@ -66,9 +60,9 @@ type createPropertyRequest struct {
 }
 
 func (h *Handler) CreateProperty(c echo.Context) error {
-	session, ok := c.Get("session").(*SessionData)
-	if !ok {
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+	session, err := requireSession(c)
+	if err != nil {
+		return err
 	}
 
 	if session.UserType != "manager" {
@@ -77,7 +71,7 @@ func (h *Handler) CreateProperty(c echo.Context) error {
 
 	var req createPropertyRequest
 	if err := c.Bind(&req); err != nil {
-		h.logger.Error("create property: failed to bind request", err)
+		h.logError("create property: failed to bind request", err)
 		return invalidRequestBody(c)
 	}
 
@@ -85,10 +79,9 @@ func (h *Handler) CreateProperty(c echo.Context) error {
 		return errorResponse(c, http.StatusBadRequest, "title and address are required")
 	}
 
-	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
+	ownerID, err := h.sessionUserID(c, session, "create property")
 	if err != nil {
-		h.logger.Error("create property: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return err
 	}
 
 	property, err := h.queries.CreateProperty(c.Request().Context(), db.CreatePropertyParams{

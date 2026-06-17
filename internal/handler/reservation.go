@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -25,26 +24,21 @@ type listReservationsRequest struct {
 }
 
 func (h *Handler) ListReservations(c echo.Context) error {
-	session, ok := c.Get("session").(*SessionData)
-	if !ok {
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+	session, err := requireSession(c)
+	if err != nil {
+		return err
 	}
 
 	var req listReservationsRequest
 	if err := c.Bind(&req); err != nil {
-		h.logger.Error("list reservations: failed to bind request", err)
+		h.logError("list reservations: failed to bind request", err)
 		return invalidRequestBody(c)
 	}
 
-	if req.Page < 1 {
-		req.Page = 1
-	}
-	offset := int32((req.Page - 1) * pageSize)
-
-	userID, err := strconv.ParseInt(session.UserID, 10, 64)
+	page, offset := normalizePage(req.Page)
+	userID, err := h.sessionUserID(c, session, "list reservations")
 	if err != nil {
-		h.logger.Error("list reservations: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return err
 	}
 
 	params := db.ListManagerReservationsFilteredParams{
@@ -54,24 +48,24 @@ func (h *Handler) ListReservations(c echo.Context) error {
 	}
 
 	if req.PropertyName != "" {
-		params.PropertyNameFilter = pgtype.Text{String: req.PropertyName, Valid: true}
+		params.PropertyNameFilter = textFilter(req.PropertyName)
 	}
 	if req.GuestName != "" {
-		params.GuestNameFilter = pgtype.Text{String: req.GuestName, Valid: true}
+		params.GuestNameFilter = textFilter(req.GuestName)
 	}
 	if req.CheckInFrom != "" {
 		t, err := time.Parse(time.RFC3339, req.CheckInFrom)
 		if err != nil {
 			return errorResponse(c, http.StatusBadRequest, "invalid check_in_from, expected RFC3339")
 		}
-		params.CheckInFrom = pgtype.Timestamptz{Time: t, Valid: true}
+		params.CheckInFrom = pgTimestamp(t)
 	}
 	if req.CheckOutTo != "" {
 		t, err := time.Parse(time.RFC3339, req.CheckOutTo)
 		if err != nil {
 			return errorResponse(c, http.StatusBadRequest, "invalid check_out_to, expected RFC3339")
 		}
-		params.CheckOutTo = pgtype.Timestamptz{Time: t, Valid: true}
+		params.CheckOutTo = pgTimestamp(t)
 	}
 
 	rows, err := h.queries.ListManagerReservationsFiltered(c.Request().Context(), params)
@@ -92,7 +86,7 @@ func (h *Handler) ListReservations(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{
 		"reservations": rows,
 		"total":        total,
-		"page":         req.Page,
+		"page":         page,
 		"pages":        pages,
 	})
 }
@@ -113,14 +107,14 @@ func (h *Handler) lockReservationProperty(propertyID string) func() {
 }
 
 func (h *Handler) CreateReservation(c echo.Context) error {
-	session, ok := c.Get("session").(*SessionData)
-	if !ok {
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+	session, err := requireSession(c)
+	if err != nil {
+		return err
 	}
 
 	var req createReservationRequest
 	if err := c.Bind(&req); err != nil {
-		h.logger.Error("create reservation: failed to bind request", err)
+		h.logError("create reservation: failed to bind request", err)
 		return invalidRequestBody(c)
 	}
 
@@ -145,19 +139,10 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		return errorResponse(c, http.StatusBadRequest, "invalid checkout datetime or timezone")
 	}
 
-	bookedBy, err := strconv.ParseInt(session.UserID, 10, 64)
+	bookedBy, err := h.sessionUserID(c, session, "create reservation")
 	if err != nil {
-		h.logger.Error("create reservation: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return err
 	}
-
-	var checkInTs pgtype.Timestamptz
-	checkInTs.Time = checkIn
-	checkInTs.Valid = true
-
-	var checkOutTs pgtype.Timestamptz
-	checkOutTs.Time = checkOut
-	checkOutTs.Valid = true
 
 	unlock := h.lockReservationProperty(req.PropertyID)
 	defer unlock()
@@ -178,7 +163,7 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		return h.internalError(c, "create reservation: failed to get property", err)
 	}
 
-	if strconv.FormatInt(property.OwnerID, 10) != session.UserID && session.UserType != "manager" {
+	if property.OwnerID != bookedBy && session.UserType != "manager" {
 		return errorResponse(c, http.StatusNotFound, "property not found")
 	}
 
@@ -187,8 +172,8 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		PropertyName: property.Title,
 		BookedBy:     bookedBy,
 		GuestName:    req.GuestName,
-		CheckIn:      checkInTs,
-		CheckOut:     checkOutTs,
+		CheckIn:      pgTimestamp(checkIn),
+		CheckOut:     pgTimestamp(checkOut),
 	})
 	if err != nil {
 		return h.internalError(c, "create reservation: db query failed", err)
