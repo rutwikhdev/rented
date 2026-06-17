@@ -45,9 +45,9 @@ func (h *Handler) ListProperties(c echo.Context) error {
 		return h.internalError(c, "list properties: db query failed", err)
 	}
 
-	total, err := h.queries.CountPropertiesByOwner(c.Request().Context(), ownerID)
-	if err != nil {
-		return h.internalError(c, "list properties: count failed", err)
+	var total int64
+	if len(properties) > 0 {
+		total = properties[0].TotalCount
 	}
 
 	pages := calcPages(int(total), pageSize)
