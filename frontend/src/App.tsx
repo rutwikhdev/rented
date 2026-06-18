@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider } from "@/contexts/AuthProvider"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { DashboardLayout } from "@/components/layout/DashboardLayout"
+import { Toaster } from "@/components/ui/sonner"
 import Login from "@/pages/Login"
 import Signup from "@/pages/Signup"
 import Properties from "@/pages/Properties"
@@ -38,6 +39,7 @@ function App() {
           }
         />
       </Routes>
+      <Toaster />
     </AuthProvider>
   )
 }
