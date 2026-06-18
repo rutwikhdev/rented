@@ -75,6 +75,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     return data as T
 }
 
+function withQuery(path: string, params: Record<string, string | number | undefined>): string {
+    const query = new URLSearchParams()
+
+    for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== "") {
+            query.set(key, String(value))
+        }
+    }
+
+    const queryString = query.toString()
+    return queryString ? `${path}?${queryString}` : path
+}
+
 export const api = {
     signup: (name: string, email: string, password: string, type: string) =>
         request<SessionData>("/signup", {
@@ -91,10 +104,7 @@ export const api = {
     logout: () => request("/logout", { method: "POST" }),
 
     listProperties: (page: number = 1) =>
-        request<PaginatedResponse<Property>>("/property", {
-            method: "POST",
-            body: JSON.stringify({ page }),
-        }),
+        request<PaginatedResponse<Property>>(withQuery("/property", { page }), { method: "GET" }),
 
     createProperty: (title: string, address: string) =>
         request<Property>("/property/new", {
@@ -103,16 +113,13 @@ export const api = {
         }),
 
     listReservations: (page: number = 1, propertyName?: string, guestName?: string, checkInFrom?: string, checkOutTo?: string) =>
-        request<PaginatedResponse<Reservation>>("/reservation", {
-            method: "POST",
-            body: JSON.stringify({
-                page,
-                property_name: propertyName,
-                guest_name: guestName,
-                check_in_from: checkInFrom,
-                check_out_to: checkOutTo,
-            }),
-        }),
+        request<PaginatedResponse<Reservation>>(withQuery("/reservation", {
+            page,
+            property_name: propertyName,
+            guest_name: guestName,
+            check_in_from: checkInFrom,
+            check_out_to: checkOutTo,
+        }), { method: "GET" }),
 
     createReservation: (propertyId: string, guestName: string, checkIn: string, checkOut: string) =>
         request<Reservation>("/reservation/new", {
@@ -128,7 +135,7 @@ export const api = {
 
     updateReservation: (id: number, propertyId: string, guestName: string, checkIn: string, checkOut: string) =>
         request<Reservation>(`/reservation/edit/${id}`, {
-            method: "PUT",
+            method: "PATCH",
             body: JSON.stringify({
                 property_id: propertyId,
                 guest_name: guestName,

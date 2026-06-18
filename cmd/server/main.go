@@ -82,11 +82,11 @@ func main() {
 	// authenticated routes
 	auth := v1.Group("", mw.Auth(queries, redisClient, logger))
 	auth.POST("/logout", h.Logout)
-	auth.POST("/property", h.ListProperties)
+	auth.GET("/property", h.ListProperties)
 	auth.PUT("/property/new", h.CreateProperty)
-	auth.POST("/reservation", h.ListReservations)
+	auth.GET("/reservation", h.ListReservations)
 	auth.PUT("/reservation/new", h.CreateReservation)
-	auth.PUT("/reservation/edit/:id", h.UpdateReservation)
+	auth.PATCH("/reservation/edit/:id", h.UpdateReservation)
 
 	go func() {
 		addr := fmt.Sprintf(":%d", cfg.Server.Port)

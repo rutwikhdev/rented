@@ -40,7 +40,7 @@ func (h *Handler) ListProperties(c echo.Context) error {
 	}
 
 	var req struct {
-		Page int `json:"page"`
+		Page int `json:"page" query:"page"`
 	}
 	if err := c.Bind(&req); err != nil {
 		h.logger.Error("list properties: failed to bind request", err)

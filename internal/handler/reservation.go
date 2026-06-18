@@ -17,11 +17,11 @@ import (
 )
 
 type listReservationsRequest struct {
-	Page         int    `json:"page"`
-	PropertyName string `json:"property_name"`
-	GuestName    string `json:"guest_name"`
-	CheckInFrom  string `json:"check_in_from"`
-	CheckOutTo   string `json:"check_out_to"`
+	Page         int    `json:"page" query:"page"`
+	PropertyName string `json:"property_name" query:"property_name"`
+	GuestName    string `json:"guest_name" query:"guest_name"`
+	CheckInFrom  string `json:"check_in_from" query:"check_in_from"`
+	CheckOutTo   string `json:"check_out_to" query:"check_out_to"`
 }
 
 type createReservationRequest struct {
