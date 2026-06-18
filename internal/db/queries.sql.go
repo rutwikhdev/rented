@@ -298,6 +298,46 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	return i, err
 }
 
+const listActiveOrUpcomingReservationsByPropertyIDs = `-- name: ListActiveOrUpcomingReservationsByPropertyIDs :many
+SELECT property_id, guest_name, check_in, check_out
+FROM reservations
+WHERE property_id = ANY($1::uuid[])
+  AND check_out > now()
+ORDER BY property_id, check_in ASC
+`
+
+type ListActiveOrUpcomingReservationsByPropertyIDsRow struct {
+	PropertyID pgtype.UUID        `json:"property_id"`
+	GuestName  string             `json:"guest_name"`
+	CheckIn    pgtype.Timestamptz `json:"check_in"`
+	CheckOut   pgtype.Timestamptz `json:"check_out"`
+}
+
+func (q *Queries) ListActiveOrUpcomingReservationsByPropertyIDs(ctx context.Context, propertyIds []pgtype.UUID) ([]ListActiveOrUpcomingReservationsByPropertyIDsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveOrUpcomingReservationsByPropertyIDs, propertyIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListActiveOrUpcomingReservationsByPropertyIDsRow
+	for rows.Next() {
+		var i ListActiveOrUpcomingReservationsByPropertyIDsRow
+		if err := rows.Scan(
+			&i.PropertyID,
+			&i.GuestName,
+			&i.CheckIn,
+			&i.CheckOut,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listManagerReservationsFiltered = `-- name: ListManagerReservationsFiltered :many
 SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at,
        COUNT(*) OVER() AS total_count

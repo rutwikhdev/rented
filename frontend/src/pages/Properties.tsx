@@ -3,6 +3,7 @@ import { Building2, Plus } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 import { api, type Property } from "@/lib/api"
 import { errorMessage } from "@/lib/error-message"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +22,13 @@ import { PaginationBar } from "@/components/ui/pagination-bar"
 import { EmptyState } from "@/components/ui/empty-state"
 
 const PAGE_SIZE = 50
+
+function formatDateTime(dt: string) {
+    return new Date(dt).toLocaleString(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+    })
+}
 
 export default function Properties() {
     const { user } = useAuth()
@@ -159,8 +167,40 @@ export default function Properties() {
                                 <CardHeader>
                                     <CardTitle>{property.title}</CardTitle>
                                 </CardHeader>
-                                <CardContent>
+                                <CardContent className="flex flex-col gap-3">
                                     <p className="text-sm text-muted-foreground">{property.address}</p>
+                                    <div className="flex flex-col gap-1 rounded-md border p-3 text-sm">
+                                        <div className="flex">
+                                            <p className="pr-2">Status: </p>
+                                            <div
+                                                className={cn(
+                                                    "inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
+                                                    property.status === "occupied"
+                                                        ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-700"
+                                                        : "border-green-500/30 bg-green-500/10 text-green-700",
+                                                )}
+                                            >
+                                                {property.status}
+                                            </div>
+                                        </div>
+                                        {property.status === "occupied" && property.guest_name && (
+                                            <div className="text-muted-foreground">
+                                                Current guest: {property.guest_name}
+                                            </div>
+                                        )}
+                                        {property.status === "vacant" && property.guest_name && (
+                                            <div className="text-muted-foreground">
+                                                Next guest: {property.guest_name}
+                                            </div>
+                                        )}
+                                        {property.next_check_in ? (
+                                            <div className="text-muted-foreground">
+                                                Next check-in: {formatDateTime(property.next_check_in)}
+                                            </div>
+                                        ) : (
+                                            <div className="text-muted-foreground">No upcoming check-in</div>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
                         ))}

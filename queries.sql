@@ -41,6 +41,13 @@ WHERE owner_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: ListActiveOrUpcomingReservationsByPropertyIDs :many
+SELECT property_id, guest_name, check_in, check_out
+FROM reservations
+WHERE property_id = ANY(@property_ids::uuid[])
+  AND check_out > now()
+ORDER BY property_id, check_in ASC;
+
 -- name: CreateReservation :one
 INSERT INTO reservations (property_id, booked_by, guest_name, check_in, check_out)
 VALUES ($1, $2, $3, $4, $5)

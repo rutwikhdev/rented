@@ -41,6 +41,5 @@ CREATE TABLE IF NOT EXISTS reservations (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE reservations DROP COLUMN IF EXISTS property_name;
-
-CREATE INDEX IF NOT EXISTS idx_reservations_property_id ON reservations(property_id);
+CREATE INDEX IF NOT EXISTS idx_reservations_property_id_check_out_check_in
+ON reservations(property_id, check_out, check_in);

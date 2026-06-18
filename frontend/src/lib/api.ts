@@ -15,6 +15,11 @@ export interface Property {
     address: string
     created_at: string
     updated_at: string
+    status: "occupied" | "vacant"
+    guest_name?: string
+    current_check_in?: string
+    current_check_out?: string
+    next_check_in?: string
 }
 
 export interface Reservation {

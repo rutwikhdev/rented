@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
@@ -18,12 +19,25 @@ type createPropertyRequest struct {
 }
 
 type propertyResponse struct {
-	ID        pgtype.UUID        `json:"id"`
-	OwnerID   int64              `json:"owner_id"`
-	Title     string             `json:"title"`
-	Address   string             `json:"address"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID              pgtype.UUID        `json:"id"`
+	OwnerID         int64              `json:"owner_id"`
+	Title           string             `json:"title"`
+	Address         string             `json:"address"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	Status          string             `json:"status"`
+	GuestName       *string            `json:"guest_name,omitempty"`
+	CurrentCheckIn  *time.Time         `json:"current_check_in,omitempty"`
+	CurrentCheckOut *time.Time         `json:"current_check_out,omitempty"`
+	NextCheckIn     *time.Time         `json:"next_check_in,omitempty"`
+}
+
+type propertyReservationStatus struct {
+	status          string
+	guestName       *string
+	currentCheckIn  *time.Time
+	currentCheckOut *time.Time
+	nextCheckIn     *time.Time
 }
 
 type listPropertiesResponse struct {
@@ -72,16 +86,63 @@ func (h *Handler) ListProperties(c echo.Context) error {
 		total = properties[0].TotalCount
 	}
 
+	statuses := map[pgtype.UUID]propertyReservationStatus{}
+	if len(properties) > 0 {
+		propertyIDs := make([]pgtype.UUID, 0, len(properties))
+		for _, property := range properties {
+			propertyIDs = append(propertyIDs, property.ID)
+		}
+
+		reservations, err := h.queries.ListActiveOrUpcomingReservationsByPropertyIDs(c.Request().Context(), propertyIDs)
+		if err != nil {
+			return h.internalError(c, "list properties: reservation status query failed", err)
+		}
+
+		now := time.Now()
+		for _, reservation := range reservations {
+			status := statuses[reservation.PropertyID]
+			if reservation.CheckIn.Time.After(now) {
+				if status.nextCheckIn == nil {
+					nextCheckIn := reservation.CheckIn.Time
+					status.nextCheckIn = &nextCheckIn
+					if status.status != "occupied" {
+						guestName := reservation.GuestName
+						status.guestName = &guestName
+					}
+				}
+			} else if status.status != "occupied" {
+				guestName := reservation.GuestName
+				currentCheckIn := reservation.CheckIn.Time
+				currentCheckOut := reservation.CheckOut.Time
+				status.status = "occupied"
+				status.guestName = &guestName
+				status.currentCheckIn = &currentCheckIn
+				status.currentCheckOut = &currentCheckOut
+			}
+			statuses[reservation.PropertyID] = status
+		}
+	}
+
 	pages := calcPages(int(total), pageSize)
 	items := make([]propertyResponse, 0, len(properties))
 	for _, property := range properties {
+		status := statuses[property.ID]
+		if status.status == "" {
+			status.status = "vacant"
+		}
+
 		items = append(items, propertyResponse{
-			ID:        property.ID,
-			OwnerID:   property.OwnerID,
-			Title:     property.Title,
-			Address:   property.Address,
-			CreatedAt: property.CreatedAt,
-			UpdatedAt: property.UpdatedAt,
+			ID:              property.ID,
+			OwnerID:         property.OwnerID,
+			Title:           property.Title,
+			Address:         property.Address,
+			CreatedAt:       property.CreatedAt,
+			UpdatedAt:       property.UpdatedAt,
+			Status:          status.status,
+			GuestName:       status.guestName,
+			CurrentCheckIn:  status.currentCheckIn,
+			CurrentCheckOut: status.currentCheckOut,
+			NextCheckIn:     status.nextCheckIn,
 		})
 	}
 
