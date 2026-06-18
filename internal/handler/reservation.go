@@ -177,10 +177,14 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		return h.internalError(c, "create reservation: failed to get property", err)
 	}
 
-	if strconv.FormatInt(property.OwnerID, 10) != session.UserID && session.UserType != "manager" {
-		return errorResponse(c, http.StatusNotFound, ErrorCodePropertyNotFound, "property not found")
+	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
+	if err != nil {
+		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
 	}
 
+	if property.OwnerID != ownerID {
+		return errorResponse(c, http.StatusNotFound, ErrorCodePropertyNotFound, "property not found")
+	}
 	checkIn, err := utils.ParseLocalToUTC(req.CheckIn, req.Timezone, true)
 	if err != nil {
 		return errorResponse(c, http.StatusBadRequest, ErrorCodeInvalidCheckInDateTime, "invalid checkin datetime or timezone")
@@ -188,12 +192,6 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 	checkOut, err := utils.ParseLocalToUTC(req.CheckOut, req.Timezone, false)
 	if err != nil {
 		return errorResponse(c, http.StatusBadRequest, ErrorCodeInvalidCheckOutDateTime, "invalid checkout datetime or timezone")
-	}
-
-	bookedBy, err := strconv.ParseInt(session.UserID, 10, 64)
-	if err != nil {
-		h.logger.Error("create reservation: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
 	}
 
 	var checkInTs pgtype.Timestamptz
@@ -217,7 +215,7 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 
 	reservation, err := h.queries.CreateReservation(c.Request().Context(), db.CreateReservationParams{
 		PropertyID: pid,
-		BookedBy:   bookedBy,
+		BookedBy:   ownerID,
 		GuestName:  req.GuestName,
 		CheckIn:    checkInTs,
 		CheckOut:   checkOutTs,
