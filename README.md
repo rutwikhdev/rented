@@ -101,7 +101,7 @@ Optional filters for reservations:
 }
 ```
 
-All responses use JSON with an `error` field on failures (4xx / 5xx).
+Failure responses (4xx / 5xx) include `error` and `error_code` fields.
 
 ## Testing
 
