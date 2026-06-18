@@ -36,7 +36,7 @@ type listPropertiesResponse struct {
 func (h *Handler) ListProperties(c echo.Context) error {
 	session, ok := c.Get("session").(*SessionData)
 	if !ok {
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
 	}
 
 	var req struct {
@@ -55,7 +55,7 @@ func (h *Handler) ListProperties(c echo.Context) error {
 	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
 	if err != nil {
 		h.logger.Error("list properties: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
 	}
 
 	properties, err := h.queries.ListPropertiesByOwner(c.Request().Context(), db.ListPropertiesByOwnerParams{
@@ -96,11 +96,11 @@ func (h *Handler) ListProperties(c echo.Context) error {
 func (h *Handler) CreateProperty(c echo.Context) error {
 	session, ok := c.Get("session").(*SessionData)
 	if !ok {
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
 	}
 
 	if session.UserType != "manager" {
-		return errorResponse(c, http.StatusForbidden, "only managers can create properties")
+		return errorResponse(c, http.StatusForbidden, ErrorCodeForbidden, "only managers can create properties")
 	}
 
 	var req createPropertyRequest
@@ -110,13 +110,13 @@ func (h *Handler) CreateProperty(c echo.Context) error {
 	}
 
 	if req.Title == "" || req.Address == "" {
-		return errorResponse(c, http.StatusBadRequest, "title and address are required")
+		return errorResponse(c, http.StatusBadRequest, ErrorCodeMissingRequiredFields, "title and address are required")
 	}
 
 	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
 	if err != nil {
 		h.logger.Error("create property: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, "unauthorized")
+		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
 	}
 
 	property, err := h.queries.CreateProperty(c.Request().Context(), db.CreatePropertyParams{

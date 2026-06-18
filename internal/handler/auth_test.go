@@ -14,30 +14,35 @@ func TestHandler_SignupValidation(t *testing.T) {
 		name       string
 		body       string
 		wantStatus int
+		wantCode   string
 		wantError  string
 	}{
 		{
 			name:       "missing required fields",
 			body:       `{}`,
 			wantStatus: http.StatusBadRequest,
+			wantCode:   ErrorCodeMissingRequiredFields,
 			wantError:  "name, email, and password are required",
 		},
 		{
 			name:       "invalid email",
 			body:       `{"name":"Test User","email":"invalid","password":"password123"}`,
 			wantStatus: http.StatusBadRequest,
+			wantCode:   ErrorCodeInvalidEmailFormat,
 			wantError:  "invalid email format",
 		},
 		{
 			name:       "weak password",
 			body:       `{"name":"Test User","email":"test@example.com","password":"short"}`,
 			wantStatus: http.StatusBadRequest,
+			wantCode:   ErrorCodeWeakPassword,
 			wantError:  "password must be at least 8 characters",
 		},
 		{
 			name:       "invalid user type",
 			body:       `{"name":"Test User","email":"test@example.com","password":"password123","type":"admin"}`,
 			wantStatus: http.StatusBadRequest,
+			wantCode:   ErrorCodeInvalidUserType,
 			wantError:  "type must be guest or manager",
 		},
 	}
@@ -45,7 +50,7 @@ func TestHandler_SignupValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := runJSONHandler(t, http.MethodPost, "/signup", tt.body, (&Handler{}).Signup)
-			assertErrorResponse(t, rec, tt.wantStatus, tt.wantError)
+			assertErrorResponse(t, rec, tt.wantStatus, tt.wantCode, tt.wantError)
 		})
 	}
 }
@@ -55,18 +60,21 @@ func TestHandler_LoginValidation(t *testing.T) {
 		name       string
 		body       string
 		wantStatus int
+		wantCode   string
 		wantError  string
 	}{
 		{
 			name:       "missing email",
 			body:       `{"password":"password123"}`,
 			wantStatus: http.StatusBadRequest,
+			wantCode:   ErrorCodeMissingRequiredFields,
 			wantError:  "email and password are required",
 		},
 		{
 			name:       "missing password",
 			body:       `{"email":"test@example.com"}`,
 			wantStatus: http.StatusBadRequest,
+			wantCode:   ErrorCodeMissingRequiredFields,
 			wantError:  "email and password are required",
 		},
 	}
@@ -74,7 +82,7 @@ func TestHandler_LoginValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := runJSONHandler(t, http.MethodPost, "/login", tt.body, (&Handler{}).Login)
-			assertErrorResponse(t, rec, tt.wantStatus, tt.wantError)
+			assertErrorResponse(t, rec, tt.wantStatus, tt.wantCode, tt.wantError)
 		})
 	}
 }

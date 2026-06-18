@@ -21,7 +21,7 @@ func Auth(queries *db.Queries, rdb *redis.Client, logger *utils.Logger) echo.Mid
 		return func(c echo.Context) error {
 			token := handler.ExtractToken(c)
 			if token == "" {
-				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "no token provided"})
+				return handler.ErrorResponse(c, http.StatusUnauthorized, handler.ErrorCodeNoTokenProvided, "no token provided")
 			}
 
 			session, err := getSessionFromCache(c.Request().Context(), rdb, token, logger)
@@ -32,7 +32,7 @@ func Auth(queries *db.Queries, rdb *redis.Client, logger *utils.Logger) echo.Mid
 
 			session, err = getSessionFromDB(c.Request().Context(), queries, rdb, token, logger)
 			if err != nil {
-				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+				return handler.ErrorResponse(c, http.StatusUnauthorized, handler.ErrorCodeUnauthorized, "unauthorized")
 			}
 
 			c.Set("session", session)

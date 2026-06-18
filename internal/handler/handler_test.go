@@ -39,11 +39,11 @@ func TestErrorResponse(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	if err := errorResponse(c, http.StatusBadRequest, "bad request"); err != nil {
+	if err := errorResponse(c, http.StatusBadRequest, ErrorCodeInvalidRequestBody, "bad request"); err != nil {
 		t.Fatalf("errorResponse() error = %v", err)
 	}
 
-	assertErrorResponse(t, rec, http.StatusBadRequest, "bad request")
+	assertErrorResponse(t, rec, http.StatusBadRequest, ErrorCodeInvalidRequestBody, "bad request")
 }
 
 func TestInvalidRequestBody(t *testing.T) {
@@ -56,10 +56,10 @@ func TestInvalidRequestBody(t *testing.T) {
 		t.Fatalf("invalidRequestBody() error = %v", err)
 	}
 
-	assertErrorResponse(t, rec, http.StatusBadRequest, "invalid request body")
+	assertErrorResponse(t, rec, http.StatusBadRequest, ErrorCodeInvalidRequestBody, "invalid request body")
 }
 
-func assertErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantError string) {
+func assertErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantErrorCode string, wantError string) {
 	t.Helper()
 
 	if rec.Code != wantStatus {
@@ -72,5 +72,8 @@ func assertErrorResponse(t *testing.T, rec *httptest.ResponseRecorder, wantStatu
 	}
 	if body["error"] != wantError {
 		t.Fatalf("error body = %q, want %q", body["error"], wantError)
+	}
+	if body["error_code"] != wantErrorCode {
+		t.Fatalf("error_code body = %q, want %q", body["error_code"], wantErrorCode)
 	}
 }

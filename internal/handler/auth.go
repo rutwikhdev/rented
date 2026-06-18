@@ -50,17 +50,17 @@ func (h *Handler) Signup(c echo.Context) error {
 	}
 
 	if req.Name == "" || req.Email == "" || req.Password == "" {
-		return errorResponse(c, http.StatusBadRequest, "name, email, and password are required")
+		return errorResponse(c, http.StatusBadRequest, ErrorCodeMissingRequiredFields, "name, email, and password are required")
 	}
 
 	req.Email = utils.SanitizeEmail(req.Email)
 
 	if err := utils.ValidateEmail(req.Email); err != nil {
-		return errorResponse(c, http.StatusBadRequest, "invalid email format")
+		return errorResponse(c, http.StatusBadRequest, ErrorCodeInvalidEmailFormat, "invalid email format")
 	}
 
 	if err := utils.ValidatePassword(req.Password); err != nil {
-		return errorResponse(c, http.StatusBadRequest, "password must be at least 8 characters")
+		return errorResponse(c, http.StatusBadRequest, ErrorCodeWeakPassword, "password must be at least 8 characters")
 	}
 
 	userType := req.Type
@@ -68,7 +68,7 @@ func (h *Handler) Signup(c echo.Context) error {
 		userType = "manager"
 	}
 	if userType != "guest" && userType != "manager" {
-		return errorResponse(c, http.StatusBadRequest, "type must be guest or manager")
+		return errorResponse(c, http.StatusBadRequest, ErrorCodeInvalidUserType, "type must be guest or manager")
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -86,9 +86,9 @@ func (h *Handler) Signup(c echo.Context) error {
 		h.logger.Error("signup: failed to create user", err, "email", req.Email)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return errorResponse(c, http.StatusConflict, "email already exists")
+			return errorResponse(c, http.StatusConflict, ErrorCodeEmailAlreadyExists, "email already exists")
 		}
-		return errorResponse(c, http.StatusInternalServerError, "internal server error")
+		return errorResponse(c, http.StatusInternalServerError, ErrorCodeInternalServerError, "internal server error")
 	}
 
 	token, err := generateToken()
@@ -132,7 +132,7 @@ func (h *Handler) Login(c echo.Context) error {
 	}
 
 	if req.Email == "" || req.Password == "" {
-		return errorResponse(c, http.StatusBadRequest, "email and password are required")
+		return errorResponse(c, http.StatusBadRequest, ErrorCodeMissingRequiredFields, "email and password are required")
 	}
 
 	req.Email = utils.SanitizeEmail(req.Email)
@@ -141,13 +141,13 @@ func (h *Handler) Login(c echo.Context) error {
 	if err != nil {
 		h.logger.Error("login: failed to get user", err, "email", req.Email)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return errorResponse(c, http.StatusUnauthorized, "invalid credentials")
+			return errorResponse(c, http.StatusUnauthorized, ErrorCodeInvalidCredentials, "invalid credentials")
 		}
-		return errorResponse(c, http.StatusInternalServerError, "internal server error")
+		return errorResponse(c, http.StatusInternalServerError, ErrorCodeInternalServerError, "internal server error")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		return errorResponse(c, http.StatusUnauthorized, "invalid credentials")
+		return errorResponse(c, http.StatusUnauthorized, ErrorCodeInvalidCredentials, "invalid credentials")
 	}
 
 	token, err := generateToken()
@@ -186,7 +186,7 @@ func (h *Handler) Login(c echo.Context) error {
 func (h *Handler) Logout(c echo.Context) error {
 	token := ExtractToken(c)
 	if token == "" {
-		return errorResponse(c, http.StatusUnauthorized, "no token provided")
+		return errorResponse(c, http.StatusUnauthorized, ErrorCodeNoTokenProvided, "no token provided")
 	}
 
 	if err := h.queries.DeleteSession(c.Request().Context(), token); err != nil {
