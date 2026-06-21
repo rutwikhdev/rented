@@ -5,3 +5,4 @@ concurrent*
 deploy*
 seed*
 server.log
+.env
