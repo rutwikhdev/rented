@@ -29,7 +29,6 @@ type propertyResponse struct {
 	GuestName       *string            `json:"guest_name,omitempty"`
 	CurrentCheckIn  *time.Time         `json:"current_check_in,omitempty"`
 	CurrentCheckOut *time.Time         `json:"current_check_out,omitempty"`
-	NextCheckIn     *time.Time         `json:"next_check_in,omitempty"`
 }
 
 type propertyReservationStatus struct {
@@ -37,7 +36,6 @@ type propertyReservationStatus struct {
 	guestName       *string
 	currentCheckIn  *time.Time
 	currentCheckOut *time.Time
-	nextCheckIn     *time.Time
 }
 
 type listPropertiesResponse struct {
@@ -93,34 +91,29 @@ func (h *Handler) ListProperties(c echo.Context) error {
 			propertyIDs = append(propertyIDs, property.ID)
 		}
 
-		reservations, err := h.queries.ListActiveOrUpcomingReservationsByPropertyIDs(c.Request().Context(), propertyIDs)
+		now := time.Now()
+
+		occupants, err := h.queries.ListCurrentOccupantsByPropertyIDs(c.Request().Context(), propertyIDs)
 		if err != nil {
-			return h.internalError(c, "list properties: reservation status query failed", err)
+			return h.internalError(c, "list properties: occupant query failed", err)
+		}
+		for _, occ := range occupants {
+			guestName := occ.GuestName
+			currentCheckIn := occ.CheckIn.Time
+			currentCheckOut := occ.CheckOut.Time
+			propertyStatus := "occupied"
+
+			if !occ.CheckIn.Time.After(now) {
+				propertyStatus = "vacant"
+			}
+			statuses[occ.PropertyID] = propertyReservationStatus{
+				status:          propertyStatus,
+				guestName:       &guestName,
+				currentCheckIn:  &currentCheckIn,
+				currentCheckOut: &currentCheckOut,
+			}
 		}
 
-		now := time.Now()
-		for _, reservation := range reservations {
-			status := statuses[reservation.PropertyID]
-			if reservation.CheckIn.Time.After(now) {
-				if status.nextCheckIn == nil {
-					nextCheckIn := reservation.CheckIn.Time
-					status.nextCheckIn = &nextCheckIn
-					if status.status != "occupied" {
-						guestName := reservation.GuestName
-						status.guestName = &guestName
-					}
-				}
-			} else if status.status != "occupied" {
-				guestName := reservation.GuestName
-				currentCheckIn := reservation.CheckIn.Time
-				currentCheckOut := reservation.CheckOut.Time
-				status.status = "occupied"
-				status.guestName = &guestName
-				status.currentCheckIn = &currentCheckIn
-				status.currentCheckOut = &currentCheckOut
-			}
-			statuses[reservation.PropertyID] = status
-		}
 	}
 
 	pages := calcPages(int(total), pageSize)
@@ -142,7 +135,6 @@ func (h *Handler) ListProperties(c echo.Context) error {
 			GuestName:       status.guestName,
 			CurrentCheckIn:  status.currentCheckIn,
 			CurrentCheckOut: status.currentCheckOut,
-			NextCheckIn:     status.nextCheckIn,
 		})
 	}
 
@@ -177,7 +169,7 @@ func (h *Handler) CreateProperty(c echo.Context) error {
 	ownerID, err := strconv.ParseInt(session.UserID, 10, 64)
 	if err != nil {
 		h.logger.Error("create property: invalid session user id", err)
-		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
+		return errorResponse(c, http.StatusInternalServerError, ErrorCodeInternalServerError, "could not convert userid to string")
 	}
 
 	property, err := h.queries.CreateProperty(c.Request().Context(), db.CreatePropertyParams{

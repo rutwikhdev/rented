@@ -23,13 +23,6 @@ import { EmptyState } from "@/components/ui/empty-state"
 
 const PAGE_SIZE = 50
 
-function formatDateTime(dt: string) {
-    return new Date(dt).toLocaleString(undefined, {
-        dateStyle: "medium",
-        timeStyle: "short",
-    })
-}
-
 export default function Properties() {
     const { user } = useAuth()
     const [properties, setProperties] = useState<Property[]>([])
@@ -89,6 +82,13 @@ export default function Properties() {
         } finally {
             setCreating(false)
         }
+    }
+
+    function formatDateTime(dt: string) {
+        return new Date(dt).toLocaleString(undefined, {
+            dateStyle: "medium",
+            timeStyle: "short",
+        })
     }
 
     return (
@@ -188,17 +188,11 @@ export default function Properties() {
                                                 Current guest: {property.guest_name}
                                             </div>
                                         )}
-                                        {property.status === "vacant" && property.guest_name && (
+                                        {property.status === "vacant" && (
                                             <div className="text-muted-foreground">
-                                                Next guest: {property.guest_name}
+                                                <p>Next guest: {property.guest_name}</p>
+                                                <p>Check-in: {formatDateTime(property.current_check_in || "")}</p>
                                             </div>
-                                        )}
-                                        {property.next_check_in ? (
-                                            <div className="text-muted-foreground">
-                                                Next check-in: {formatDateTime(property.next_check_in)}
-                                            </div>
-                                        ) : (
-                                            <div className="text-muted-foreground">No upcoming check-in</div>
                                         )}
                                     </div>
                                 </CardContent>

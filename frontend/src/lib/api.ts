@@ -19,7 +19,6 @@ export interface Property {
     guest_name?: string
     current_check_in?: string
     current_check_out?: string
-    next_check_in?: string
 }
 
 export interface Reservation {
