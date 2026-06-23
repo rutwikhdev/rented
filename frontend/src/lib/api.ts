@@ -15,7 +15,7 @@ export interface Property {
     address: string
     created_at: string
     updated_at: string
-    status: "occupied" | "vacant"
+    status: "occupied" | "vacant" | "booked"
     guest_name?: string
     current_check_in?: string
     current_check_out?: string

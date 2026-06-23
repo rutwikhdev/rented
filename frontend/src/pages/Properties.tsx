@@ -102,7 +102,7 @@ export default function Properties() {
                     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                         <DialogTrigger render={<Button />}>
                             <Plus data-icon="inline-start" />
-                            New Property
+                            New
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
@@ -164,34 +164,38 @@ export default function Properties() {
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {properties.map((property) => (
                             <Card key={property.id}>
-                                <CardHeader>
+                                <CardHeader className="flex justify-between">
                                     <CardTitle>{property.title}</CardTitle>
+                                    <div
+                                        className={cn(
+                                            "inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
+                                            property.status === "occupied"
+                                                ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-700"
+                                                : property.status === "booked"
+                                                    ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-700"
+                                                    : "border-gray-200/50 bg-gray-100 text-gray-500",
+                                        )}
+                                    >
+                                        {property.status}
+                                    </div>
                                 </CardHeader>
                                 <CardContent className="flex flex-col gap-3">
                                     <p className="text-sm text-muted-foreground">{property.address}</p>
-                                    <div className="flex flex-col gap-1 rounded-md border p-3 text-sm">
-                                        <div className="flex">
-                                            <p className="pr-2">Status: </p>
-                                            <div
-                                                className={cn(
-                                                    "inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
-                                                    property.status === "occupied"
-                                                        ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-700"
-                                                        : "border-green-500/30 bg-green-500/10 text-green-700",
-                                                )}
-                                            >
-                                                {property.status}
-                                            </div>
-                                        </div>
-                                        {property.status === "occupied" && property.guest_name && (
-                                            <div className="text-muted-foreground">
-                                                Current guest: {property.guest_name}
-                                            </div>
-                                        )}
-                                        {property.status === "vacant" && (
-                                            <div className="text-muted-foreground">
-                                                <p>Next guest: {property.guest_name}</p>
-                                                <p>Check-in: {formatDateTime(property.current_check_in || "")}</p>
+                                    <div className={cn("flex flex-col gap-1", ["booked", "occupied"].includes(property.status) ? "border-t pt-4" : "")}>
+                                        {["booked", "occupied"].includes(property.status) && property.guest_name && (
+                                            <div>
+                                                <div className="flex justify-between items-center h-fit mb-1">
+                                                    <p className="text-muted-foreground text-xs font-semibold">CURRENT GUEST</p>
+                                                    <p>{property.guest_name}</p>
+                                                </div>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <p className="text-muted-foreground text-xs font-semibold">CHECK-IN</p>
+                                                    <p>{formatDateTime(property.current_check_in || "")}</p>
+                                                </div>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <p className="text-muted-foreground text-xs font-semibold">CHECK-OUT</p>
+                                                    <p>{formatDateTime(property.current_check_out || "")}</p>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

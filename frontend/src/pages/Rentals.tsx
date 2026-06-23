@@ -358,7 +358,7 @@ export default function Rentals() {
                 ) : (
                     <div className="flex-1 overflow-y-auto min-h-0 max-full">
                         <Table className="[&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10 [&_thead]:bg-card">
-                            <TableHeader>
+                            <TableHeader className="sticky">
                                 <TableRow>
                                     <TableHead>Property</TableHead>
                                     <TableHead>Guest</TableHead>
