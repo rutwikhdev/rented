@@ -69,14 +69,17 @@ JOIN properties p ON r.property_id = p.id
 WHERE r.id = $1 AND p.owner_id = $2;
 
 -- name: UpdateReservation :one
-UPDATE reservations
+UPDATE reservations r
 SET property_id = $2,
     guest_name = $3,
     check_in = $4,
     check_out = $5,
     updated_at = now()
-WHERE id = $1
-RETURNING id, property_id, booked_by, guest_name, check_in, check_out, created_at, updated_at;
+FROM properties p
+WHERE r.id = $1
+  AND p.id = $2
+  AND p.owner_id = @owner_id
+RETURNING r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at;
 
 -- name: ListManagerReservationsFiltered :many
 SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at,

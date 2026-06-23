@@ -442,14 +442,17 @@ func (q *Queries) ListPropertiesWithOccupantByOwner(ctx context.Context, arg Lis
 }
 
 const updateReservation = `-- name: UpdateReservation :one
-UPDATE reservations
+UPDATE reservations r
 SET property_id = $2,
     guest_name = $3,
     check_in = $4,
     check_out = $5,
     updated_at = now()
-WHERE id = $1
-RETURNING id, property_id, booked_by, guest_name, check_in, check_out, created_at, updated_at
+FROM properties p
+WHERE r.id = $1
+  AND p.id = $2
+  AND p.owner_id = $6
+RETURNING r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at
 `
 
 type UpdateReservationParams struct {
@@ -458,20 +461,35 @@ type UpdateReservationParams struct {
 	GuestName  string             `json:"guest_name"`
 	CheckIn    pgtype.Timestamptz `json:"check_in"`
 	CheckOut   pgtype.Timestamptz `json:"check_out"`
+	OwnerID    int64              `json:"owner_id"`
 }
 
-func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationParams) (Reservation, error) {
+type UpdateReservationRow struct {
+	ID           int64              `json:"id"`
+	PropertyID   pgtype.UUID        `json:"property_id"`
+	PropertyName string             `json:"property_name"`
+	BookedBy     int64              `json:"booked_by"`
+	GuestName    string             `json:"guest_name"`
+	CheckIn      pgtype.Timestamptz `json:"check_in"`
+	CheckOut     pgtype.Timestamptz `json:"check_out"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpdateReservation(ctx context.Context, arg UpdateReservationParams) (UpdateReservationRow, error) {
 	row := q.db.QueryRow(ctx, updateReservation,
 		arg.ID,
 		arg.PropertyID,
 		arg.GuestName,
 		arg.CheckIn,
 		arg.CheckOut,
+		arg.OwnerID,
 	)
-	var i Reservation
+	var i UpdateReservationRow
 	err := row.Scan(
 		&i.ID,
 		&i.PropertyID,
+		&i.PropertyName,
 		&i.BookedBy,
 		&i.GuestName,
 		&i.CheckIn,
