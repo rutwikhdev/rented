@@ -2,8 +2,7 @@
 
 Rental Service management platform
 
-<img width="1801" height="1008" alt="image" src="https://github.com/user-attachments/assets/3ff842e7-e6bb-481f-9035-75c7bf329c06" />
-
+<img width="1856" height="991" alt="image" src="https://github.com/user-attachments/assets/10686433-d9f4-401c-a39a-462387b1d773" />
 
 ## Prerequisites
 
