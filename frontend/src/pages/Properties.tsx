@@ -169,11 +169,11 @@ export default function Properties() {
                                     <div
                                         className={cn(
                                             "inline-flex w-fit rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
-                                            property.status === "occupied"
-                                                ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-700"
-                                                : property.status === "booked"
-                                                    ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-700"
-                                                    : "border-gray-200/50 bg-gray-100 text-gray-500",
+                                                    property.status === "occupied"
+                                                        ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-700 dark:border-yellow-400/30 dark:bg-yellow-400/10 dark:text-yellow-300"
+                                                        : property.status === "booked"
+                                                          ? "border-indigo-500/30 bg-indigo-500/10 text-indigo-700 dark:border-indigo-400/30 dark:bg-indigo-400/10 dark:text-indigo-300"
+                                                          : "border-gray-200/50 bg-gray-100 text-gray-500 dark:border-gray-700/50 dark:bg-gray-800 dark:text-gray-400",
                                         )}
                                     >
                                         {property.status}
