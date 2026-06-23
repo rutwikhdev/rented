@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 
@@ -56,6 +58,7 @@ const (
 	ErrorCodeInvalidCheckOutTo       = "INVALID_CHECK_OUT_TO"
 	ErrorCodeTimezoneRequired        = "TIMEZONE_REQUIRED"
 	ErrorCodeReservationRuleFailed   = "RESERVATION_RULE_FAILED"
+	ErrorCodeOverlappingReservation = "OVERLAPPING_RESERVATION"
 )
 
 type errorResponseBody struct {
@@ -89,4 +92,9 @@ func calcPages(total, pageSize int) int {
 		pages++
 	}
 	return pages
+}
+
+func isExclusionViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23P01"
 }

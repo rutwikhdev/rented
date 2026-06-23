@@ -1,6 +1,6 @@
 //go:build integration
 
-package rules
+package db
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"rented/internal/db"
 )
 
 var testPool *pgxpool.Pool
@@ -54,7 +53,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestNoOverlapRule_Integration(t *testing.T) {
+func TestExclusionConstraint(t *testing.T) {
 	if testPool == nil {
 		t.Skip("integration tests require a database connection")
 	}
@@ -63,11 +62,10 @@ func TestNoOverlapRule_Integration(t *testing.T) {
 	existingCheckOut := time.Date(2028, 7, 5, 9, 30, 0, 0, time.UTC)
 
 	tests := []struct {
-		name            string
-		checkIn         time.Time
-		checkOut        time.Time
-		expectErr       bool
-		excludeExisting bool
+		name      string
+		checkIn   time.Time
+		checkOut  time.Time
+		expectErr bool
 	}{
 		{
 			name:      "no overlap - entirely before",
@@ -123,13 +121,6 @@ func TestNoOverlapRule_Integration(t *testing.T) {
 			checkOut:  existingCheckOut,
 			expectErr: true,
 		},
-		{
-			name:            "exclude existing reservation allows same dates",
-			checkIn:         existingCheckIn,
-			checkOut:        existingCheckOut,
-			expectErr:       false,
-			excludeExisting: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -141,9 +132,9 @@ func TestNoOverlapRule_Integration(t *testing.T) {
 			}
 			defer tx.Rollback(ctx)
 
-			q := db.New(tx)
+			q := New(tx)
 
-			user, err := q.CreateUser(ctx, db.CreateUserParams{
+			user, err := q.CreateUser(ctx, CreateUserParams{
 				Name:         "Test Manager",
 				Email:        fmt.Sprintf("manager-%d@test.com", time.Now().UnixNano()),
 				PasswordHash: "hash",
@@ -153,7 +144,7 @@ func TestNoOverlapRule_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			property, err := q.CreateProperty(ctx, db.CreatePropertyParams{
+			property, err := q.CreateProperty(ctx, CreatePropertyParams{
 				OwnerID: user.ID,
 				Title:   "Test Property",
 				Address: "123 Test St",
@@ -162,7 +153,7 @@ func TestNoOverlapRule_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			existing, err := q.CreateReservation(ctx, db.CreateReservationParams{
+			_, err = q.CreateReservation(ctx, CreateReservationParams{
 				PropertyID: property.ID,
 				BookedBy:   user.ID,
 				GuestName:  "Existing Guest",
@@ -173,23 +164,18 @@ func TestNoOverlapRule_Integration(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			rule := NewNoOverlapRule(q)
-			input := RuleInput{
+			_, err = q.CreateReservation(ctx, CreateReservationParams{
 				PropertyID: property.ID,
-				CheckIn:    tt.checkIn,
-				CheckOut:   tt.checkOut,
-			}
-			if tt.excludeExisting {
-				input.ExcludeReservationID = existing.ID
-			}
+				BookedBy:   user.ID,
+				GuestName:  "New Guest",
+				CheckIn:    pgtype.Timestamptz{Time: tt.checkIn, Valid: true},
+				CheckOut:   pgtype.Timestamptz{Time: tt.checkOut, Valid: true},
+			})
 
-			err = rule.Check(ctx, input)
 			if tt.expectErr {
-				if err == nil {
-					t.Fatal("expected ErrOverlappingReservation but got nil")
-				}
-				if !errors.Is(err, ErrOverlappingReservation) {
-					t.Fatalf("expected ErrOverlappingReservation, got %v", err)
+				var pgErr *pgconn.PgError
+				if !errors.As(err, &pgErr) || pgErr.Code != "23P01" {
+					t.Fatalf("expected exclusion violation (23P01), got %v", err)
 				}
 			} else {
 				if err != nil {

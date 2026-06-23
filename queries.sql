@@ -54,14 +54,6 @@ INSERT INTO reservations (property_id, booked_by, guest_name, check_in, check_ou
 VALUES ($1, $2, $3, $4, $5)
 RETURNING id, property_id, booked_by, guest_name, check_in, check_out, created_at, updated_at;
 
--- name: CheckOverlappingReservations :one
-SELECT COUNT(*)
-FROM reservations
-WHERE property_id = $1
-  AND (sqlc.narg('exclude_reservation_id')::bigint IS NULL OR id <> sqlc.narg('exclude_reservation_id')::bigint)
-  AND check_out > @new_check_in
-  AND check_in < @new_check_out;
-
 -- name: GetManagerReservationByID :one
 SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at
 FROM reservations r

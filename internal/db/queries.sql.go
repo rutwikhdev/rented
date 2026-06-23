@@ -11,34 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const checkOverlappingReservations = `-- name: CheckOverlappingReservations :one
-SELECT COUNT(*)
-FROM reservations
-WHERE property_id = $1
-  AND ($2::bigint IS NULL OR id <> $2::bigint)
-  AND check_out > $3
-  AND check_in < $4
-`
-
-type CheckOverlappingReservationsParams struct {
-	PropertyID           pgtype.UUID        `json:"property_id"`
-	ExcludeReservationID pgtype.Int8        `json:"exclude_reservation_id"`
-	NewCheckIn           pgtype.Timestamptz `json:"new_check_in"`
-	NewCheckOut          pgtype.Timestamptz `json:"new_check_out"`
-}
-
-func (q *Queries) CheckOverlappingReservations(ctx context.Context, arg CheckOverlappingReservationsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, checkOverlappingReservations,
-		arg.PropertyID,
-		arg.ExcludeReservationID,
-		arg.NewCheckIn,
-		arg.NewCheckOut,
-	)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createProperty = `-- name: CreateProperty :one
 INSERT INTO properties (owner_id, title, address)
 VALUES ($1, $2, $3)

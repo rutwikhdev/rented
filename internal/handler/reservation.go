@@ -221,6 +221,10 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		CheckOut:   checkOutTs,
 	})
 	if err != nil {
+		if isExclusionViolation(err) {
+			return errorResponse(c, http.StatusConflict, ErrorCodeOverlappingReservation,
+				"This property already has a reservation that overlaps with the requested dates")
+		}
 		return h.internalError(c, "create reservation: db query failed", err)
 	}
 
@@ -315,6 +319,10 @@ func (h *Handler) UpdateReservation(c echo.Context) error {
 		OwnerID:    ownerID,
 	})
 	if err != nil {
+		if isExclusionViolation(err) {
+			return errorResponse(c, http.StatusConflict, ErrorCodeOverlappingReservation,
+				"This property already has a reservation that overlaps with the requested dates")
+		}
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errorResponse(c, http.StatusNotFound, ErrorCodePropertyNotFound, "property not found")
 		}
