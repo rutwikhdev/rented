@@ -298,30 +298,31 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	return i, err
 }
 
-const listActiveOrUpcomingReservationsByPropertyIDs = `-- name: ListActiveOrUpcomingReservationsByPropertyIDs :many
-SELECT property_id, guest_name, check_in, check_out
+const listCurrentOccupantsByPropertyIDs = `-- name: ListCurrentOccupantsByPropertyIDs :many
+SELECT DISTINCT ON (property_id)
+  property_id, guest_name, check_in, check_out
 FROM reservations
 WHERE property_id = ANY($1::uuid[])
   AND check_out > now()
 ORDER BY property_id, check_in ASC
 `
 
-type ListActiveOrUpcomingReservationsByPropertyIDsRow struct {
+type ListCurrentOccupantsByPropertyIDsRow struct {
 	PropertyID pgtype.UUID        `json:"property_id"`
 	GuestName  string             `json:"guest_name"`
 	CheckIn    pgtype.Timestamptz `json:"check_in"`
 	CheckOut   pgtype.Timestamptz `json:"check_out"`
 }
 
-func (q *Queries) ListActiveOrUpcomingReservationsByPropertyIDs(ctx context.Context, propertyIds []pgtype.UUID) ([]ListActiveOrUpcomingReservationsByPropertyIDsRow, error) {
-	rows, err := q.db.Query(ctx, listActiveOrUpcomingReservationsByPropertyIDs, propertyIds)
+func (q *Queries) ListCurrentOccupantsByPropertyIDs(ctx context.Context, propertyIds []pgtype.UUID) ([]ListCurrentOccupantsByPropertyIDsRow, error) {
+	rows, err := q.db.Query(ctx, listCurrentOccupantsByPropertyIDs, propertyIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListActiveOrUpcomingReservationsByPropertyIDsRow
+	var items []ListCurrentOccupantsByPropertyIDsRow
 	for rows.Next() {
-		var i ListActiveOrUpcomingReservationsByPropertyIDsRow
+		var i ListCurrentOccupantsByPropertyIDsRow
 		if err := rows.Scan(
 			&i.PropertyID,
 			&i.GuestName,

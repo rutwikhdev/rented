@@ -41,8 +41,9 @@ WHERE owner_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
--- name: ListActiveOrUpcomingReservationsByPropertyIDs :many
-SELECT property_id, guest_name, check_in, check_out
+-- name: ListCurrentOccupantsByPropertyIDs :many
+SELECT DISTINCT ON (property_id)
+  property_id, guest_name, check_in, check_out
 FROM reservations
 WHERE property_id = ANY(@property_ids::uuid[])
   AND check_out > now()
