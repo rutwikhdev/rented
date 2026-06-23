@@ -6,4 +6,3 @@ deploy*
 seed*
 server.log
 .env
-server
