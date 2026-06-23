@@ -31,13 +31,6 @@ type propertyResponse struct {
 	CurrentCheckOut *time.Time         `json:"current_check_out,omitempty"`
 }
 
-type propertyReservationStatus struct {
-	status          string
-	guestName       *string
-	currentCheckIn  *time.Time
-	currentCheckOut *time.Time
-}
-
 type listPropertiesResponse struct {
 	Properties []propertyResponse `json:"properties"`
 	Total      int64              `json:"total"`
@@ -70,7 +63,7 @@ func (h *Handler) ListProperties(c echo.Context) error {
 		return errorResponse(c, http.StatusUnauthorized, ErrorCodeUnauthorized, "unauthorized")
 	}
 
-	properties, err := h.queries.ListPropertiesByOwner(c.Request().Context(), db.ListPropertiesByOwnerParams{
+	rows, err := h.queries.ListPropertiesWithOccupantByOwner(c.Request().Context(), db.ListPropertiesWithOccupantByOwnerParams{
 		OwnerID: ownerID,
 		Limit:   int32(pageSize),
 		Offset:  int32(offset),
@@ -80,64 +73,43 @@ func (h *Handler) ListProperties(c echo.Context) error {
 	}
 
 	var total int64
-	if len(properties) > 0 {
-		total = properties[0].TotalCount
+	if len(rows) > 0 {
+		total = rows[0].TotalCount
 	}
 
-	statuses := map[pgtype.UUID]propertyReservationStatus{}
-	if len(properties) > 0 {
-		propertyIDs := make([]pgtype.UUID, 0, len(properties))
-		for _, property := range properties {
-			propertyIDs = append(propertyIDs, property.ID)
+	now := time.Now()
+	items := make([]propertyResponse, 0, len(rows))
+	for _, row := range rows {
+		resp := propertyResponse{
+			ID:        row.ID,
+			OwnerID:   row.OwnerID,
+			Title:     row.Title,
+			Address:   row.Address,
+			CreatedAt: row.CreatedAt,
+			UpdatedAt: row.UpdatedAt,
 		}
 
-		now := time.Now()
+		if row.GuestName.Valid {
+			guestName := row.GuestName.String
+			checkIn := row.CheckIn.Time
+			checkOut := row.CheckOut.Time
+			resp.GuestName = &guestName
+			resp.CurrentCheckIn = &checkIn
+			resp.CurrentCheckOut = &checkOut
 
-		occupants, err := h.queries.ListCurrentOccupantsByPropertyIDs(c.Request().Context(), propertyIDs)
-		if err != nil {
-			return h.internalError(c, "list properties: occupant query failed", err)
-		}
-		for _, occ := range occupants {
-			guestName := occ.GuestName
-			currentCheckIn := occ.CheckIn.Time
-			currentCheckOut := occ.CheckOut.Time
-			propertyStatus := "occupied"
-
-			if !occ.CheckIn.Time.After(now) {
-				propertyStatus = "vacant"
+			if !checkIn.After(now) && checkOut.After(now) {
+				resp.Status = "occupied"
+			} else {
+				resp.Status = "booked"
 			}
-			statuses[occ.PropertyID] = propertyReservationStatus{
-				status:          propertyStatus,
-				guestName:       &guestName,
-				currentCheckIn:  &currentCheckIn,
-				currentCheckOut: &currentCheckOut,
-			}
+		} else {
+			resp.Status = "vacant"
 		}
 
+		items = append(items, resp)
 	}
 
 	pages := calcPages(int(total), pageSize)
-	items := make([]propertyResponse, 0, len(properties))
-	for _, property := range properties {
-		status := statuses[property.ID]
-		if status.status == "" {
-			status.status = "vacant"
-		}
-
-		items = append(items, propertyResponse{
-			ID:              property.ID,
-			OwnerID:         property.OwnerID,
-			Title:           property.Title,
-			Address:         property.Address,
-			CreatedAt:       property.CreatedAt,
-			UpdatedAt:       property.UpdatedAt,
-			Status:          status.status,
-			GuestName:       status.guestName,
-			CurrentCheckIn:  status.currentCheckIn,
-			CurrentCheckOut: status.currentCheckOut,
-		})
-	}
-
 	return c.JSON(http.StatusOK, listPropertiesResponse{
 		Properties: items,
 		Total:      total,

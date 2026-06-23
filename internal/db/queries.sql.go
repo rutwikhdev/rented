@@ -298,47 +298,6 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	return i, err
 }
 
-const listCurrentOccupantsByPropertyIDs = `-- name: ListCurrentOccupantsByPropertyIDs :many
-SELECT DISTINCT ON (property_id)
-  property_id, guest_name, check_in, check_out
-FROM reservations
-WHERE property_id = ANY($1::uuid[])
-  AND check_out > now()
-ORDER BY property_id, check_in ASC
-`
-
-type ListCurrentOccupantsByPropertyIDsRow struct {
-	PropertyID pgtype.UUID        `json:"property_id"`
-	GuestName  string             `json:"guest_name"`
-	CheckIn    pgtype.Timestamptz `json:"check_in"`
-	CheckOut   pgtype.Timestamptz `json:"check_out"`
-}
-
-func (q *Queries) ListCurrentOccupantsByPropertyIDs(ctx context.Context, propertyIds []pgtype.UUID) ([]ListCurrentOccupantsByPropertyIDsRow, error) {
-	rows, err := q.db.Query(ctx, listCurrentOccupantsByPropertyIDs, propertyIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListCurrentOccupantsByPropertyIDsRow
-	for rows.Next() {
-		var i ListCurrentOccupantsByPropertyIDsRow
-		if err := rows.Scan(
-			&i.PropertyID,
-			&i.GuestName,
-			&i.CheckIn,
-			&i.CheckOut,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listManagerReservationsFiltered = `-- name: ListManagerReservationsFiltered :many
 SELECT r.id, r.property_id, p.title AS property_name, r.booked_by, r.guest_name, r.check_in, r.check_out, r.created_at, r.updated_at,
        COUNT(*) OVER() AS total_count
@@ -415,22 +374,30 @@ func (q *Queries) ListManagerReservationsFiltered(ctx context.Context, arg ListM
 	return items, nil
 }
 
-const listPropertiesByOwner = `-- name: ListPropertiesByOwner :many
-SELECT id, owner_id, title, address, created_at, updated_at,
-       COUNT(*) OVER() AS total_count
-FROM properties
-WHERE owner_id = $1
-ORDER BY created_at DESC
+const listPropertiesWithOccupantByOwner = `-- name: ListPropertiesWithOccupantByOwner :many
+SELECT p.id, p.owner_id, p.title, p.address, p.created_at, p.updated_at,
+       COUNT(*) OVER() AS total_count,
+       r.guest_name, r.check_in, r.check_out
+FROM properties p
+LEFT JOIN LATERAL (
+  SELECT guest_name, check_in, check_out
+  FROM reservations
+  WHERE property_id = p.id AND check_out > now()
+  ORDER BY check_in ASC
+  LIMIT 1
+) r ON true
+WHERE p.owner_id = $1
+ORDER BY p.created_at DESC
 LIMIT $2 OFFSET $3
 `
 
-type ListPropertiesByOwnerParams struct {
+type ListPropertiesWithOccupantByOwnerParams struct {
 	OwnerID int64 `json:"owner_id"`
 	Limit   int32 `json:"limit"`
 	Offset  int32 `json:"offset"`
 }
 
-type ListPropertiesByOwnerRow struct {
+type ListPropertiesWithOccupantByOwnerRow struct {
 	ID         pgtype.UUID        `json:"id"`
 	OwnerID    int64              `json:"owner_id"`
 	Title      string             `json:"title"`
@@ -438,17 +405,20 @@ type ListPropertiesByOwnerRow struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	TotalCount int64              `json:"total_count"`
+	GuestName  pgtype.Text        `json:"guest_name"`
+	CheckIn    pgtype.Timestamptz `json:"check_in"`
+	CheckOut   pgtype.Timestamptz `json:"check_out"`
 }
 
-func (q *Queries) ListPropertiesByOwner(ctx context.Context, arg ListPropertiesByOwnerParams) ([]ListPropertiesByOwnerRow, error) {
-	rows, err := q.db.Query(ctx, listPropertiesByOwner, arg.OwnerID, arg.Limit, arg.Offset)
+func (q *Queries) ListPropertiesWithOccupantByOwner(ctx context.Context, arg ListPropertiesWithOccupantByOwnerParams) ([]ListPropertiesWithOccupantByOwnerRow, error) {
+	rows, err := q.db.Query(ctx, listPropertiesWithOccupantByOwner, arg.OwnerID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListPropertiesByOwnerRow
+	var items []ListPropertiesWithOccupantByOwnerRow
 	for rows.Next() {
-		var i ListPropertiesByOwnerRow
+		var i ListPropertiesWithOccupantByOwnerRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
@@ -457,6 +427,9 @@ func (q *Queries) ListPropertiesByOwner(ctx context.Context, arg ListPropertiesB
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.TotalCount,
+			&i.GuestName,
+			&i.CheckIn,
+			&i.CheckOut,
 		); err != nil {
 			return nil, err
 		}

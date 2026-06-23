@@ -33,21 +33,21 @@ SELECT id, owner_id, title, address, created_at, updated_at
 FROM properties
 WHERE id = $1;
 
--- name: ListPropertiesByOwner :many
-SELECT id, owner_id, title, address, created_at, updated_at,
-       COUNT(*) OVER() AS total_count
-FROM properties
-WHERE owner_id = $1
-ORDER BY created_at DESC
+-- name: ListPropertiesWithOccupantByOwner :many
+SELECT p.id, p.owner_id, p.title, p.address, p.created_at, p.updated_at,
+       COUNT(*) OVER() AS total_count,
+       r.guest_name, r.check_in, r.check_out
+FROM properties p
+LEFT JOIN LATERAL (
+  SELECT guest_name, check_in, check_out
+  FROM reservations
+  WHERE property_id = p.id AND check_out > now()
+  ORDER BY check_in ASC
+  LIMIT 1
+) r ON true
+WHERE p.owner_id = $1
+ORDER BY p.created_at DESC
 LIMIT $2 OFFSET $3;
-
--- name: ListCurrentOccupantsByPropertyIDs :many
-SELECT DISTINCT ON (property_id)
-  property_id, guest_name, check_in, check_out
-FROM reservations
-WHERE property_id = ANY(@property_ids::uuid[])
-  AND check_out > now()
-ORDER BY property_id, check_in ASC;
 
 -- name: CreateReservation :one
 INSERT INTO reservations (property_id, booked_by, guest_name, check_in, check_out)
