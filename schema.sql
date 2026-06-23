@@ -43,3 +43,11 @@ CREATE TABLE IF NOT EXISTS reservations (
 
 CREATE INDEX IF NOT EXISTS idx_reservations_property_id_check_out_check_in
 ON reservations(property_id, check_out, check_in);
+
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+ALTER TABLE reservations ADD CONSTRAINT no_overlapping_reservations
+EXCLUDE USING gist (
+    property_id WITH =,
+    tstzrange(check_in, check_out) WITH &&
+);

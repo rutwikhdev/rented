@@ -66,7 +66,6 @@ func main() {
 	rulesEngine := rules.NewEngine(
 		rules.NewCheckInNotInPastRule(),
 		rules.NewCheckoutAfterCheckinRule(),
-		rules.NewNoOverlapRule(queries),
 	)
 
 	h := handler.New(queries, redisClient, logger, rulesEngine)

@@ -221,6 +221,10 @@ func (h *Handler) CreateReservation(c echo.Context) error {
 		CheckOut:   checkOutTs,
 	})
 	if err != nil {
+		if isExclusionViolation(err) {
+			return errorResponse(c, http.StatusConflict, ErrorCodeOverlappingReservation,
+				"This property already has a reservation that overlaps with the requested dates")
+		}
 		return h.internalError(c, "create reservation: db query failed", err)
 	}
 
@@ -283,17 +287,6 @@ func (h *Handler) UpdateReservation(c echo.Context) error {
 		return errorResponse(c, http.StatusBadRequest, ErrorCodeInvalidPropertyID, "invalid property_id")
 	}
 
-	property, err := h.queries.GetPropertyByID(c.Request().Context(), pid)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return errorResponse(c, http.StatusNotFound, ErrorCodePropertyNotFound, "property not found")
-		}
-		return h.internalError(c, "update reservation: failed to get property", err)
-	}
-	if property.OwnerID != ownerID {
-		return errorResponse(c, http.StatusNotFound, ErrorCodePropertyNotFound, "property not found")
-	}
-
 	checkIn, err := utils.ParseLocalToUTC(req.CheckIn, req.Timezone, true)
 	if err != nil {
 		return errorResponse(c, http.StatusBadRequest, ErrorCodeInvalidCheckInDateTime, "invalid checkin datetime or timezone")
@@ -323,15 +316,23 @@ func (h *Handler) UpdateReservation(c echo.Context) error {
 		GuestName:  req.GuestName,
 		CheckIn:    checkInTs,
 		CheckOut:   checkOutTs,
+		OwnerID:    ownerID,
 	})
 	if err != nil {
+		if isExclusionViolation(err) {
+			return errorResponse(c, http.StatusConflict, ErrorCodeOverlappingReservation,
+				"This property already has a reservation that overlaps with the requested dates")
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errorResponse(c, http.StatusNotFound, ErrorCodePropertyNotFound, "property not found")
+		}
 		return h.internalError(c, "update reservation: db query failed", err)
 	}
 
 	return c.JSON(http.StatusOK, reservationResponse{
 		ID:           reservation.ID,
 		PropertyID:   reservation.PropertyID,
-		PropertyName: property.Title,
+		PropertyName: reservation.PropertyName,
 		BookedBy:     reservation.BookedBy,
 		GuestName:    reservation.GuestName,
 		CheckIn:      reservation.CheckIn,
